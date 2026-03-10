@@ -1,0 +1,12 @@
+{
+    "recommendations": [
+        "vscjava.vscode-java-debug", 
+        "redhat.java",
+        "vscjava.vscode-maven",
+        "vscjava.vscode-java-dependency",
+        "vscjava.vscode-spring-boot-dashboard",
+        "vmware.vscode-spring-boot",
+        "vscjava.vscode-spring-initializr",
+        "juhahinkula.thymeleaf"
+    ]
+}

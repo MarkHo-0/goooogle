@@ -1,0 +1,14 @@
+{
+    "configurations": [
+        {
+            "type": "java",
+            "name": "Spring Boot-GoooogleApplication<goooogle>",
+            "request": "launch",
+            "cwd": "${workspaceFolder}",
+            "mainClass": "com.hkust.goooogle.GoooogleApplication",
+            "projectName": "goooogle",
+            "args": "",
+            "envFile": "${workspaceFolder}/.env"
+        }
+    ]
+}
