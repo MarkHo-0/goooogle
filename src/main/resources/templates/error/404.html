@@ -1,0 +1,10 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body th:replace="~{layout :: layout(~{::section})}">
+<section style="text-align:center;">
+    <h1>404 - Page Not Found</h1>
+    <p>The page you requested does not exist.</p>
+    <p><a th:href="@{/home}">Back to Home</a></p>
+</section>
+</body>
+</html>

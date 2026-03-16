@@ -1,0 +1,11 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body th:replace="~{layout :: layout(~{::section})}">
+<section>
+    <form th:action="@{/search}" method="get" style="display:flex;justify-content:center;align-items:center;height:40vh;">
+        <input type="text" name="q" placeholder="Search..." style="width:300px;padding:0.5em;"/>
+        <button type="submit" style="margin-left:1em;">Search</button>
+    </form>
+</section>
+</body>
+</html>
