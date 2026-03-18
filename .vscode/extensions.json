@@ -7,6 +7,7 @@
         "vscjava.vscode-spring-boot-dashboard",
         "vmware.vscode-spring-boot",
         "vscjava.vscode-spring-initializr",
-        "juhahinkula.thymeleaf"
+        "juhahinkula.thymeleaf",
+        "bowlerr.sqlite-intelliview-vscode"
     ]
 }
