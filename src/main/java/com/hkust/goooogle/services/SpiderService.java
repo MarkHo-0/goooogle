@@ -167,34 +167,14 @@ public class SpiderService {
         return db.query(
             "SELECT id, last_modify_time FROM pages WHERE url = ? LIMIT 1",
             rs -> {
-                if (!rs.next()) {
-                    return null;
-                }
+                if (!rs.next()) return null;
 
                 int id = rs.getInt("id");
-                String rawLastModifyTime = rs.getString("last_modify_time");
-                return new ExistingPageInfo(id, normalizeStoredLastModifyTime(rawLastModifyTime));
+                String lastModifyTime = rs.getString("last_modify_time");
+                return new ExistingPageInfo(id, lastModifyTime);
             },
             url
         );
-    }
-
-    private String normalizeStoredLastModifyTime(String rawLastModifyTime) {
-        if (rawLastModifyTime == null || rawLastModifyTime.isBlank()) {
-            return null;
-        }
-
-        try {
-            ZonedDateTime parsed = ZonedDateTime.parse(rawLastModifyTime, DateTimeFormatter.RFC_1123_DATE_TIME.withLocale(Locale.ENGLISH));
-            return parsed.format(DateTimeFormatter.RFC_1123_DATE_TIME.withLocale(Locale.ENGLISH));
-        } catch (DateTimeParseException firstParseException) {
-            try {
-                return ZonedDateTime.parse(rawLastModifyTime.replace(' ', 'T'))
-                    .format(DateTimeFormatter.RFC_1123_DATE_TIME.withLocale(Locale.ENGLISH));
-            } catch (DateTimeParseException secondParseException) {
-                return null;
-            }
-        }
     }
 
     private void savePageToLocalCache(int pageId, String html) throws IOException {
