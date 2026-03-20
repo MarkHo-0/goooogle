@@ -73,28 +73,30 @@ public class SpiderService {
 
     private void executeCrawlingBatches() {
         while (!shouldStopSpider()) {
-            crawlOneBatchRecursive(0);
+            int currentBatchLimit = betweenBatchesDelayMillis == 0 ? maxPagesLimit : batchSizeLimit;
+            int crawledInBatch = 0;
 
-            if (shouldStopSpider()) break;
-            if (!sleepBetweenBatches()) break;
+            while (crawledInBatch < currentBatchLimit) {
+                String nextUrl = pendingCrawlUrls.poll();
+                if (nextUrl == null) break;
+
+                if (crawlPage(nextUrl)) {
+                    crawledInBatch++;
+                }
+            }
+
+            sleepBetweenBatches();
         }
 
         resetSpider();
     }
 
-    private void crawlOneBatchRecursive(int crawledInBatch) {
-        int currentBatchLimit = betweenBatchesDelayMillis == 0 ? maxPagesLimit : batchSizeLimit;
-        if (crawledInBatch >= currentBatchLimit) return;
-
-        String nextUrl = pendingCrawlUrls.poll();
-        if (nextUrl == null) return;
-
-        state = SpiderState.CRAWLING;
-        boolean isSuccessfulCrawl = false;
+    private boolean crawlPage(String url) {
+        setState(SpiderState.CRAWLING);
 
         try {
-            ExistingPageInfo existingPage = getExistingPageInfo(nextUrl);
-            Connection connection = Jsoup.connect(nextUrl).followRedirects(true).ignoreHttpErrors(true);
+            ExistingPageInfo existingPage = getExistingPageInfo(url);
+            Connection connection = Jsoup.connect(url).followRedirects(true).ignoreHttpErrors(true);
 
             // 如果数据库中已有记录且包含上次修改时间，则在请求头中添加 If-Modified-Since，以利用服务器的缓存机制减少不必要的数据传输
             if (existingPage != null && existingPage.lastModifyTime() != null && !existingPage.lastModifyTime().isBlank()) {
@@ -114,18 +116,17 @@ public class SpiderService {
 
             // 解析页面内容并更新数据库记录
             Document document = response.parse();
-            int pageId = upsertPage(nextUrl, document, existingPage);
+            int pageId = upsertPage(url, document, existingPage);
             savePageToLocalCache(pageId, document.outerHtml());
             addChildLinksToPendingQueue(document);
-            System.out.println("Crawled Successfully: " + nextUrl);
+            System.out.println("Crawled Successfully: " + url);
 
             totalCrawledThisRun++;
-            isSuccessfulCrawl = true;
+            return true;
         } catch (Exception ex) {
-            System.err.println("Failed to crawl: " + nextUrl + ": " + ex.getMessage());
+            System.err.println("Failed to crawl: " + url + ": " + ex.getMessage());
+            return false;
         }
-
-        crawlOneBatchRecursive(crawledInBatch + (isSuccessfulCrawl ? 1 : 0));
     }
 
     private int upsertPage(String url, Document document, ExistingPageInfo existingPage) {
@@ -260,20 +261,22 @@ public class SpiderService {
         return totalCrawledThisRun >= maxPagesLimit || pendingCrawlUrls.isEmpty();
     }
 
-    private boolean sleepBetweenBatches() {
-        if (betweenBatchesDelayMillis <= 0) {
-            return true;
+    private void sleepBetweenBatches() {
+        if (betweenBatchesDelayMillis <= 0 || shouldStopSpider()) {
+            return;
         }
 
-        state = SpiderState.WAITING_BETWEEN_BATCHES;
+        setState(SpiderState.WAITING_BETWEEN_BATCHES);
 
         try {
             Thread.sleep(betweenBatchesDelayMillis);
-            return true;
         } catch (InterruptedException interruptedException) {
             Thread.currentThread().interrupt();
-            return false;
         }
+    }
+
+    public void setState(SpiderState newState) {
+        this.state = newState;
     }
 
     private void resetSpider() {
@@ -282,7 +285,7 @@ public class SpiderService {
         maxPagesLimit = 30;
         batchSizeLimit = 10;
         betweenBatchesDelayMillis = 1000;
-        state = SpiderState.IDLE;
+        setState(SpiderState.IDLE);
     }
 
     public int getTotalIndexedPages() {
