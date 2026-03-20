@@ -55,9 +55,9 @@ public class PageController {
     public String startSpider(@RequestParam String url,
                               @RequestParam int maxPages,
                               @RequestParam int batchSize,
-                              @RequestParam int waitTime,
+                              @RequestParam int betweenBatchesDelayMillis,
                               Model model) {
-        spiderService.startSpider(url, maxPages, batchSize, waitTime);
+        spiderService.startSpider(url, maxPages, batchSize, betweenBatchesDelayMillis);
         model.addAttribute("pageTitle", "Spider");
         return "spider";
     }

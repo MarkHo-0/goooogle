@@ -22,7 +22,7 @@ public class DatabaseSchemaInitializer implements CommandLineRunner {
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 url TEXT NOT NULL UNIQUE,
                 title TEXT,
-                last_modify_time DATETIME,
+                last_modify_time TEXT,
                 content_size INTEGER
             )
             """);

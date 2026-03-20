@@ -18,7 +18,7 @@ public class Page {
                 LocalDateTime lastModifyTime,
                 int contentSize,
                 List<String> keywords,
-            List<PageSimple> childPages) {
+                List<PageSimple> childPages) {
         this.url = url;
         this.lastModifyTime = lastModifyTime;
         this.contentSize = contentSize;

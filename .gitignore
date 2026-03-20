@@ -30,3 +30,4 @@ build/
 
 ### Database ###
 *.db
+/cache_pages
