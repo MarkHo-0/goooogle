@@ -1,6 +1,7 @@
 package com.hkust.goooogle;
 
 import com.hkust.goooogle.models.Page;
+import com.hkust.goooogle.services.IndexerService;
 import com.hkust.goooogle.services.KeywordService;
 import com.hkust.goooogle.services.SearchService;
 import com.hkust.goooogle.services.SpiderService;
@@ -18,13 +19,16 @@ public class PageController {
     private final SearchService searchService;
     private final SpiderService spiderService;
     private final KeywordService keywordService;
+    private final IndexerService indexerService;
 
     public PageController(SearchService searchService,
                           SpiderService spiderService,
-                          KeywordService keywordService) {
+                          KeywordService keywordService,
+                          IndexerService indexerService) {
         this.searchService = searchService;
         this.spiderService = spiderService;
         this.keywordService = keywordService;
+        this.indexerService = indexerService;
     }
 
     @GetMapping({"/", "/home"})
@@ -73,5 +77,21 @@ public class PageController {
         }
         model.addAttribute("keywords", keywords);
         return "keywords";
+    }
+
+    @GetMapping("/index")
+    public String index(Model model) {
+        model.addAttribute("pageTitle", "Indexer");
+        model.addAttribute("stats", indexerService.getIndexStats());
+        return "index";
+    }
+
+    @PostMapping("/index")
+    public String startIndexing(Model model) {
+        int indexed = indexerService.indexAllPages();
+        model.addAttribute("pageTitle", "Indexer");
+        model.addAttribute("stats", indexerService.getIndexStats());
+        model.addAttribute("message", "Successfully indexed " + indexed + " pages");
+        return "index";
     }
 }
