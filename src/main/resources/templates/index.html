@@ -9,20 +9,27 @@
     <div th:if="${message}" style="background:#d4edda;border:1px solid #c3e6cb;border-radius:8px;padding:1em;margin-bottom:2em;color:#155724;text-align:center;">
         ✓ <span th:text="${message}">Indexing Complete</span>
     </div>
-    <form th:action="@{/index}" method="post" style="max-width:400px;margin:0 auto;text-align:center;">
+    <form th:action="@{/index}" method="post" style="max-width:400px;margin:0 auto;text-align:center;margin-bottom:2em;">
         <button type="submit" style="padding:0.75em 2em;font-size:1em;background:#667eea;color:white;border:none;border-radius:4px;cursor:pointer;">
             Start Indexing
         </button>
     </form>
-    <div style="max-width:600px;margin:2em auto;padding:1.5em;background:#f8f9fa;border-left:4px solid #667eea;border-radius:4px;color:#555;line-height:1.6;font-size:0.95em;">
-        <strong>What does the indexer do?</strong>
-        <ul style="margin-left:20px;margin-top:1em;">
-            <li style="margin:0.5em 0;">📄 Reads all cached HTML files from the spider</li>
-            <li style="margin:0.5em 0;">🔤 Extracts words and their frequencies</li>
-            <li style="margin:0.5em 0;">💾 Stores unique words in the database</li>
-            <li style="margin:0.5em 0;">🔗 Creates word-page relationships for searching</li>
-            <li style="margin:0.5em 0;">🗑️ Filters out common stop words</li>
+    
+    <form th:action="@{/index}" method="get" style="max-width:500px;margin:0 auto;text-align:center;margin-bottom:2em;">
+        <input type="text" name="q" th:value="${param.q}" placeholder="Search keywords..." style="width:300px;padding:0.5em;"/>
+        <button type="submit" style="margin-left:1em;padding:0.5em 1em;background:#667eea;color:white;border:none;border-radius:4px;cursor:pointer;">Search</button>
+    </form>
+    
+    <div th:if="${keywords != null and keywords.size() > 0}" style="max-width:600px;margin:0 auto;">
+        <h4 style="text-align:center;margin-bottom:1em;" th:text="'Matching Keywords (' + ${keywords.size()} + ')'">Results</h4>
+        <ul style="list-style:none;padding:0;">
+            <li th:each="word : ${keywords}" style="padding:0.5em;border-bottom:1px solid #e0e0e0;text-align:center;">
+                <span th:text="${word}"></span>
+            </li>
         </ul>
+    </div>
+    <div th:if="${param.q != null and (keywords == null or keywords.size() == 0)}" style="text-align:center;color:#999;margin-top:2em;">
+        No keywords found matching "<span th:text="${param.q}"></span>"
     </div>
 </section>
 </body>

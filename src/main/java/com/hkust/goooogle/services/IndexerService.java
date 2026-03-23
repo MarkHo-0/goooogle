@@ -257,6 +257,27 @@ public class IndexerService {
     }
 
     /**
+     * Search for keywords matching a pattern (case-insensitive wildcard search).
+     * 
+     * Query: SELECT word FROM words WHERE word LIKE %query%
+     * 
+     * @param query Search query (e.g., "java" finds "java", "javascript", "coffee")
+     * @return List of matching keywords
+     */
+    public List<String> searchKeywords(String query) {
+        if (query == null || query.isEmpty()) {
+            return new ArrayList<>();
+        }
+        
+        String searchPattern = "%" + query.toLowerCase() + "%";
+        return db.query(
+            "SELECT word FROM words WHERE LOWER(word) LIKE ? ORDER BY word ASC",
+            new Object[]{searchPattern},
+            (rs, rowNum) -> rs.getString("word")
+        );
+    }
+
+    /**
      * Get statistics about what's been indexed.
      * 
      * @return String with index statistics

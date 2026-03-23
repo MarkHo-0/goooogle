@@ -80,9 +80,13 @@ public class PageController {
     }
 
     @GetMapping("/index")
-    public String index(Model model) {
+    public String index(@RequestParam(value = "q", required = false) String q, Model model) {
         model.addAttribute("pageTitle", "Indexer");
         model.addAttribute("stats", indexerService.getIndexStats());
+        if (q != null && !q.isEmpty()) {
+            List<String> keywords = indexerService.searchKeywords(q);
+            model.addAttribute("keywords", keywords);
+        }
         return "index";
     }
 
