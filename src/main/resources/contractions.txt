@@ -1,0 +1,37 @@
+won't -> will not
+can't -> can not
+couldn't -> could not
+shouldn't -> should not
+wouldn't -> would not
+wasn't -> was not
+weren't -> were not
+isn't -> is not
+aren't -> are not
+hasn't -> has not
+haven't -> have not
+hadn't -> had not
+doesn't -> does not
+don't -> do not
+didn't -> did not
+you're -> you are
+you'll -> you will
+you've -> you have
+i'm -> i am
+i've -> i have
+i'll -> i will
+that's -> that is
+it's -> it is
+what's -> what is
+who's -> who is
+he's -> he is
+she's -> she is
+we're -> we are
+they're -> they are
+isn't -> is not
+aren't -> are not
+can't -> cannot
+couldn't -> could not
+shouldn't -> should not
+wouldn't -> would not
+n't -> not
+'s -> is
