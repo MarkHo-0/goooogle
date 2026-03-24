@@ -24,6 +24,7 @@ import java.util.Locale;
 @Service
 public class SpiderService {
     private final JdbcTemplate db;
+    private final IndexerService indexerService;
     private final Queue<String> pendingCrawlUrls = new LinkedList<>();
     private int remainingCrawlQuota = 0;
 
@@ -31,8 +32,9 @@ public class SpiderService {
 
     private record ExistingPageInfo(int id, String lastModifyTime) {}
 
-    public SpiderService(JdbcTemplate jdbcTemplate) {
+    public SpiderService(JdbcTemplate jdbcTemplate, IndexerService indexerService) {
         this.db = jdbcTemplate;
+        this.indexerService = indexerService;
     }
 
     public synchronized boolean startSpider(String url, int maxPages) {
@@ -95,13 +97,15 @@ public class SpiderService {
             }
 
             if (response.statusCode() == 304) {
-                throw new IOException("Not Modified");
+                System.out.println("Skipped (Not Modified): " + url);
+                return true;
             }
 
             // 解析页面内容并更新数据库记录
             Document document = response.parse();
             int pageId = upsertPage(url, document, existingPage);
             savePageToLocalCache(pageId, document.outerHtml());
+            indexerService.indexPage(pageId, url);
             addChildLinksToPendingQueue(document);
             System.out.println("Crawled Successfully: " + url);
             return true;
