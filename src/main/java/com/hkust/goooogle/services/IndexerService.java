@@ -49,6 +49,9 @@ public class IndexerService {
      * @return Map of word → frequency count
      */
     public Map<String, Integer> getWordsFreq(Document doc) {
+        // Replace all <br> tags with spaces
+        doc.select("br").before(" ").remove();
+
         // Extract text from HTML (ignores script/style tags)
         String text = doc.body().text();
         
