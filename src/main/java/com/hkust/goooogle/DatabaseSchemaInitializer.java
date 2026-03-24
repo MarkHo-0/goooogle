@@ -48,7 +48,8 @@ public class DatabaseSchemaInitializer implements CommandLineRunner {
             CREATE TABLE IF NOT EXISTS keywords (
                 page_id INTEGER NOT NULL,
                 word_id INTEGER NOT NULL,
-                count INTEGER NOT NULL DEFAULT 0,
+                body_count TINYINT NOT NULL DEFAULT 0,
+                title_count TINYINT NOT NULL DEFAULT 0,
                 PRIMARY KEY (page_id, word_id),
                 FOREIGN KEY (page_id) REFERENCES pages(id) ON DELETE CASCADE,
                 FOREIGN KEY (word_id) REFERENCES words(id) ON DELETE CASCADE
@@ -73,6 +74,20 @@ public class DatabaseSchemaInitializer implements CommandLineRunner {
         jdbcTemplate.execute("""
             CREATE INDEX IF NOT EXISTS idx_links_child_page_id
             ON links (child_page_id)
+            """);
+
+        jdbcTemplate.execute("""
+            CREATE TABLE IF NOT EXISTS pending (
+                page_id INTEGER NOT NULL,
+                child_page_link TEXT NOT NULL,
+                PRIMARY KEY (page_id, child_page_link),
+                FOREIGN KEY (page_id) REFERENCES pages(id) ON DELETE CASCADE
+            )
+            """);
+
+        jdbcTemplate.execute("""
+            CREATE INDEX IF NOT EXISTS idx_pending_child_page_link
+            ON pending (child_page_link)
             """);
     }
 }
