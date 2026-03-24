@@ -23,20 +23,11 @@ import java.util.Locale;
 
 @Service
 public class SpiderService {
-    enum SpiderState {
-        IDLE,
-        CRAWLING,
-        WAITING_BETWEEN_BATCHES,
-    }
-
     private final JdbcTemplate db;
     private final Queue<String> pendingCrawlUrls = new LinkedList<>();
-    private int totalCrawledThisRun = 0;
+    private int remainingCrawlQuota = 0;
 
-    private SpiderState state = SpiderState.IDLE;
-    private int maxPagesLimit = 0;
-    private int batchSizeLimit = 0;
-    private int betweenBatchesDelayMillis = 0;
+    private volatile boolean running = false;
 
     private record ExistingPageInfo(int id, String lastModifyTime) {}
 
@@ -44,12 +35,12 @@ public class SpiderService {
         this.db = jdbcTemplate;
     }
 
-    public boolean startSpider(String url, int maxPages, int batchSize, int betweenBatchesDelayMillis) {
-        if (state != SpiderState.IDLE) {
+    public synchronized boolean startSpider(String url, int maxPages) {
+        if (running) {
             return false;
         }
 
-        if (maxPages <= 0 || batchSize <= 0 || betweenBatchesDelayMillis < 0) {
+        if (maxPages <= 0) {
             return false;
         }
 
@@ -59,11 +50,9 @@ public class SpiderService {
         }
 
         pendingCrawlUrls.clear();
-        totalCrawledThisRun = 0;
-        this.maxPagesLimit = maxPages;
-        this.batchSizeLimit = batchSize;
-        this.betweenBatchesDelayMillis = betweenBatchesDelayMillis;
+        remainingCrawlQuota = maxPages;
         pendingCrawlUrls.offer(normalizedStartUrl);
+        running = true;
 
         Thread worker = new Thread(this::executeCrawlingBatches, "spider-main-thread");
         worker.setDaemon(true);
@@ -72,28 +61,23 @@ public class SpiderService {
     }
 
     private void executeCrawlingBatches() {
-        while (!shouldStopSpider()) {
-            int currentBatchLimit = betweenBatchesDelayMillis == 0 ? maxPagesLimit : batchSizeLimit;
-            int crawledInBatch = 0;
-
-            while (crawledInBatch < currentBatchLimit) {
+        try {
+            while (!shouldStopSpider()) {
                 String nextUrl = pendingCrawlUrls.poll();
                 if (nextUrl == null) break;
 
-                if (crawlPage(nextUrl)) {
-                    crawledInBatch++;
+                if (!crawlPage(nextUrl)) {
+                    continue;
                 }
+
+                remainingCrawlQuota--;
             }
-
-            sleepBetweenBatches();
+        } finally {
+            resetSpider();
         }
-
-        resetSpider();
     }
 
     private boolean crawlPage(String url) {
-        setState(SpiderState.CRAWLING);
-
         try {
             ExistingPageInfo existingPage = getExistingPageInfo(url);
             Connection connection = Jsoup.connect(url).followRedirects(true).ignoreHttpErrors(true);
@@ -120,8 +104,6 @@ public class SpiderService {
             savePageToLocalCache(pageId, document.outerHtml());
             addChildLinksToPendingQueue(document);
             System.out.println("Crawled Successfully: " + url);
-
-            totalCrawledThisRun++;
             return true;
         } catch (Exception ex) {
             System.err.println("Failed to crawl: " + url + ": " + ex.getMessage());
@@ -238,34 +220,13 @@ public class SpiderService {
     }
 
     private boolean shouldStopSpider() {
-        return totalCrawledThisRun >= maxPagesLimit || pendingCrawlUrls.isEmpty();
+        return remainingCrawlQuota <= 0 || pendingCrawlUrls.isEmpty();
     }
 
-    private void sleepBetweenBatches() {
-        if (betweenBatchesDelayMillis <= 0 || shouldStopSpider()) {
-            return;
-        }
-
-        setState(SpiderState.WAITING_BETWEEN_BATCHES);
-
-        try {
-            Thread.sleep(betweenBatchesDelayMillis);
-        } catch (InterruptedException interruptedException) {
-            Thread.currentThread().interrupt();
-        }
-    }
-
-    public void setState(SpiderState newState) {
-        this.state = newState;
-    }
-
-    private void resetSpider() {
+    private synchronized void resetSpider() {
         pendingCrawlUrls.clear();
-        totalCrawledThisRun = 0;
-        maxPagesLimit = 30;
-        batchSizeLimit = 10;
-        betweenBatchesDelayMillis = 1000;
-        setState(SpiderState.IDLE);
+        remainingCrawlQuota = 0;
+        running = false;
     }
 
     public int getTotalIndexedPages() {
@@ -274,6 +235,6 @@ public class SpiderService {
     }
 
     public boolean isRunning() {
-        return state == SpiderState.CRAWLING || state == SpiderState.WAITING_BETWEEN_BATCHES;
+        return running;
     }
 }

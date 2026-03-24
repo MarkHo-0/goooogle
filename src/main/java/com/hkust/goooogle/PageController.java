@@ -58,10 +58,8 @@ public class PageController {
     @PostMapping("/spider")
     public String startSpider(@RequestParam String url,
                               @RequestParam int maxPages,
-                              @RequestParam int batchSize,
-                              @RequestParam int betweenBatchesDelayMillis,
                               Model model) {
-        spiderService.startSpider(url, maxPages, batchSize, betweenBatchesDelayMillis);
+        spiderService.startSpider(url, maxPages);
         model.addAttribute("pageTitle", "Spider");
         return "spider";
     }
