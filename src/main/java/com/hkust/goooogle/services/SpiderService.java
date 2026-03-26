@@ -77,6 +77,9 @@ public class SpiderService {
             remainingCrawlQuota--;
         }
 
+        System.out.println("Phase 1 complete: All pages indexed. Starting Phase 2: Resolving pending links");
+        indexerService.resolvePendingLinksFromAllPages();
+
         resetSpider();
     }
 
