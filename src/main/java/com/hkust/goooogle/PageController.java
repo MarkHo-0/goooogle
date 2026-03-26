@@ -1,7 +1,6 @@
 package com.hkust.goooogle;
 
 import com.hkust.goooogle.models.Page;
-import com.hkust.goooogle.services.IndexerService;
 import com.hkust.goooogle.services.KeywordService;
 import com.hkust.goooogle.services.SearchService;
 import com.hkust.goooogle.services.SpiderService;
@@ -19,16 +18,13 @@ public class PageController {
     private final SearchService searchService;
     private final SpiderService spiderService;
     private final KeywordService keywordService;
-    private final IndexerService indexerService;
 
     public PageController(SearchService searchService,
                           SpiderService spiderService,
-                          KeywordService keywordService,
-                          IndexerService indexerService) {
+                          KeywordService keywordService) {
         this.searchService = searchService;
         this.spiderService = spiderService;
         this.keywordService = keywordService;
-        this.indexerService = indexerService;
     }
 
     @GetMapping({"/", "/home"})
@@ -58,9 +54,12 @@ public class PageController {
     @PostMapping("/spider")
     public String startSpider(@RequestParam String url,
                               @RequestParam int maxPages,
+                              @RequestParam(defaultValue = "false") boolean cacheHtml,
                               Model model) {
-        spiderService.startSpider(url, maxPages);
+        spiderService.startSpider(url, maxPages, cacheHtml);
         model.addAttribute("pageTitle", "Spider");
+        model.addAttribute("totalPages", spiderService.getTotalIndexedPages());
+        model.addAttribute("isRunning", spiderService.isRunning());
         return "spider";
     }
 
@@ -75,25 +74,5 @@ public class PageController {
         }
         model.addAttribute("keywords", keywords);
         return "keywords";
-    }
-
-    @GetMapping("/index")
-    public String index(@RequestParam(value = "q", required = false) String q, Model model) {
-        model.addAttribute("pageTitle", "Indexer");
-        model.addAttribute("stats", indexerService.getIndexStats());
-        if (q != null && !q.isEmpty()) {
-            List<String> keywords = indexerService.searchKeywords(q);
-            model.addAttribute("keywords", keywords);
-        }
-        return "index";
-    }
-
-    @PostMapping("/index")
-    public String startIndexing(Model model) {
-        int indexed = indexerService.indexAllPages();
-        model.addAttribute("pageTitle", "Indexer");
-        model.addAttribute("stats", indexerService.getIndexStats());
-        model.addAttribute("message", "Successfully indexed " + indexed + " pages");
-        return "index";
     }
 }

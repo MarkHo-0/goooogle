@@ -137,20 +137,7 @@ public class IndexerService {
 
             Document doc = Jsoup.parse(html, pageUrl);
 
-            String title = doc.title();
-            Map<String, Integer> titleWords = title != null && !title.isEmpty() ? 
-                extractWordsFromText(title) : new HashMap<>();
-
-            Map<String, Integer> bodyWords = getWordsFreq(doc);
-
-            storeWordsAndKeywords(pageId, bodyWords, titleWords);
-
-            extractAndStorePendingLinks(pageId, doc);
-
-            resolvePendingLinks(pageId, pageUrl);
-
-            System.out.println("Indexed page " + pageId + " with " + bodyWords.size() + " unique words");
-            return true;
+            return indexPage(pageId, pageUrl, doc);
 
         } catch (Exception e) {
             System.err.println("Error indexing page " + pageId + ": " + e.getMessage());
@@ -158,53 +145,26 @@ public class IndexerService {
         }
     }
 
-    public int indexAllPages() {
-        int successCount = 0;
-        try {
-            Path cacheDir = Path.of("cache_pages");
-            
-            List<Integer> pageIds = Files.list(cacheDir)
-                .filter(path -> path.toString().endsWith(".html"))
-                .map(path -> {
-                    String filename = path.getFileName().toString();
-                    return Integer.parseInt(filename.replace(".html", ""));
-                })
-                .sorted()
-                .collect(Collectors.toList());
-
-            System.out.println("Found " + pageIds.size() + " cached pages to index");
-
-            if (!pageIds.isEmpty()) {
-                StringBuilder placeholders = new StringBuilder();
-                for (int i = 0; i < pageIds.size(); i++) {
-                    if (i > 0) placeholders.append(",");
-                    placeholders.append("?");
-                }
-                
-                String sql = "SELECT id, url FROM pages WHERE id IN (" + placeholders + ")";
-                List<Map<String, Object>> pageUrls = db.queryForList(sql, pageIds.toArray());
-                Map<Integer, String> pageIdToUrl = new HashMap<>();
-                for (Map<String, Object> row : pageUrls) {
-                    pageIdToUrl.put(((Number) row.get("id")).intValue(), (String) row.get("url"));
-                }
-
-                for (int pageId : pageIds) {
-                    String pageUrl = pageIdToUrl.get(pageId);
-                    if (pageUrl != null && indexPage(pageId, pageUrl)) {
-                        successCount++;
-                    }
-                }
-            }
-
-            System.out.println("Successfully indexed " + successCount + "/" + pageIds.size() + " pages");
-            cleanupPendingLinks();
-            System.out.println("Cleaned up remaining pending links");
-            return successCount;
-
-        } catch (IOException e) {
-            System.err.println("Error listing cache directory: " + e.getMessage());
-            return 0;
+    public boolean indexPage(int pageId, String pageUrl, Document doc) {
+        if (doc == null) {
+            System.err.println("Document is null for page ID: " + pageId);
+            return false;
         }
+
+        String title = doc.title();
+        Map<String, Integer> titleWords = title != null && !title.isEmpty() ? 
+            extractWordsFromText(title) : new HashMap<>();
+
+        Map<String, Integer> bodyWords = getWordsFreq(doc);
+
+        storeWordsAndKeywords(pageId, bodyWords, titleWords);
+
+        extractAndStorePendingLinks(pageId, doc);
+
+        resolvePendingLinks(pageId, pageUrl);
+
+        System.out.println("Indexed page " + pageId + " with " + bodyWords.size() + " unique words");
+        return true;
     }
 
     private String loadHtmlFromCache(int pageId) throws IOException {
@@ -401,29 +361,4 @@ public class IndexerService {
         }
     }
 
-    public List<String> searchKeywords(String query) {
-        if (query == null || query.isEmpty()) {
-            return new ArrayList<>();
-        }
-        
-        String searchPattern = "%" + query.toLowerCase() + "%";
-        return db.query(
-            "SELECT word FROM words WHERE LOWER(word) LIKE ? ORDER BY word ASC",
-            new Object[]{searchPattern},
-            (rs, rowNum) -> rs.getString("word")
-        );
-    }
-
-    public String getIndexStats() {
-        Integer totalWords = db.queryForObject("SELECT COUNT(*) FROM words", Integer.class);
-        Integer totalKeywords = db.queryForObject("SELECT COUNT(*) FROM keywords", Integer.class);
-        Integer totalPages = db.queryForObject("SELECT COUNT(*) FROM pages", Integer.class);
-
-        return String.format(
-            "Index Stats: %d pages, %d unique words, %d keyword entries",
-            totalPages == null ? 0 : totalPages,
-            totalWords == null ? 0 : totalWords,
-            totalKeywords == null ? 0 : totalKeywords
-        );
-    }
 }

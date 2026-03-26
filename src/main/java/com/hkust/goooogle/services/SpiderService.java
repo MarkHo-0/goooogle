@@ -27,17 +27,19 @@ public class SpiderService {
     private final IndexerService indexerService;
     private final Queue<String> pendingCrawlUrls = new LinkedList<>();
     private int remainingCrawlQuota = 0;
+    private volatile boolean cacheHtmlEnabled = false;
 
     private volatile boolean running = false;
 
     private record ExistingPageInfo(int id, String lastModifyTime) {}
+    private record CrawledPage(int pageId, String url, Document document) {}
 
     public SpiderService(JdbcTemplate jdbcTemplate, IndexerService indexerService) {
         this.db = jdbcTemplate;
         this.indexerService = indexerService;
     }
 
-    public synchronized boolean startSpider(String url, int maxPages) {
+    public synchronized boolean startSpider(String url, int maxPages, boolean cacheHtml) {
         if (running) {
             return false;
         }
@@ -53,33 +55,32 @@ public class SpiderService {
 
         pendingCrawlUrls.clear();
         remainingCrawlQuota = maxPages;
+        cacheHtmlEnabled = cacheHtml;
         pendingCrawlUrls.offer(normalizedStartUrl);
         running = true;
 
-        Thread worker = new Thread(this::executeCrawlingBatches, "spider-main-thread");
+        Thread worker = new Thread(this::executeCrawlingAndIndexing, "spider-main-thread");
         worker.setDaemon(true);
         worker.start();
         return true;
     }
 
-    private void executeCrawlingBatches() {
-        try {
-            while (!shouldStopSpider()) {
-                String nextUrl = pendingCrawlUrls.poll();
-                if (nextUrl == null) break;
+    private void executeCrawlingAndIndexing() {
+        while (remainingCrawlQuota > 0) {
+            String nextUrl = pendingCrawlUrls.poll();
+            if (nextUrl == null) break;
 
-                if (!crawlPage(nextUrl)) {
-                    continue;
-                }
+            CrawledPage crawledPage = crawlPage(nextUrl);
+            if (crawledPage == null) continue;
 
-                remainingCrawlQuota--;
-            }
-        } finally {
-            resetSpider();
+            indexerService.indexPage(crawledPage.pageId(), crawledPage.url(), crawledPage.document());
+            remainingCrawlQuota--;
         }
+
+        resetSpider();
     }
 
-    private boolean crawlPage(String url) {
+    private CrawledPage crawlPage(String url) {
         try {
             ExistingPageInfo existingPage = getExistingPageInfo(url);
             Connection connection = Jsoup.connect(url).followRedirects(true).ignoreHttpErrors(true);
@@ -93,25 +94,27 @@ public class SpiderService {
             Connection.Response response = connection.execute();
 
             if (response.statusCode() >= 400) {
-                throw new IOException(response.statusCode() + " Error Code");
+                System.err.println("Failed to crawl (HTTP " + response.statusCode() + "): " + url);
+                return null;
             }
 
             if (response.statusCode() == 304) {
                 System.out.println("Skipped (Not Modified): " + url);
-                return true;
+                return null;
             }
 
             // 解析页面内容并更新数据库记录
             Document document = response.parse();
             int pageId = upsertPage(url, document, existingPage);
-            savePageToLocalCache(pageId, document.outerHtml());
-            indexerService.indexPage(pageId, url);
+            if (cacheHtmlEnabled) {
+                savePageToLocalCache(pageId, document.outerHtml());
+            }
             addChildLinksToPendingQueue(document);
             System.out.println("Crawled Successfully: " + url);
-            return true;
+            return new CrawledPage(pageId, url, document);
         } catch (Exception ex) {
             System.err.println("Failed to crawl: " + url + ": " + ex.getMessage());
-            return false;
+            return null;
         }
     }
 
@@ -223,13 +226,10 @@ public class SpiderService {
         return fragmentIndex >= 0 ? trimmed.substring(0, fragmentIndex) : trimmed;
     }
 
-    private boolean shouldStopSpider() {
-        return remainingCrawlQuota <= 0 || pendingCrawlUrls.isEmpty();
-    }
-
     private synchronized void resetSpider() {
         pendingCrawlUrls.clear();
         remainingCrawlQuota = 0;
+        cacheHtmlEnabled = false;
         running = false;
     }
 
