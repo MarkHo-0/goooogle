@@ -1,3 +1,5 @@
+% -> percent
+| -> or
 & -> and
 + -> plus
 = -> equals

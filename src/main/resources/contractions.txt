@@ -33,5 +33,3 @@ can't -> cannot
 couldn't -> could not
 shouldn't -> should not
 wouldn't -> would not
-n't -> not
-'s -> is

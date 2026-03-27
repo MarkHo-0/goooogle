@@ -15,11 +15,9 @@ import java.nio.file.Path;
 import java.time.ZonedDateTime;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
-import java.time.format.DateTimeParseException;
 import java.util.LinkedList;
 import java.util.Queue;
 import java.util.List;
-import java.util.Locale;
 
 @Service
 public class SpiderService {
@@ -123,7 +121,7 @@ public class SpiderService {
 
     private int upsertPage(String url, Document document, ExistingPageInfo existingPage) {
         String lastModifyTime = extractLastModifyTime(document);
-        int contentSize = document.outerHtml().getBytes(StandardCharsets.UTF_8).length;
+        int contentSize = extractContentSize(document);
         String title = document.title();
 
         if (existingPage != null) {
@@ -177,17 +175,15 @@ public class SpiderService {
     }
 
     private void addChildLinksToPendingQueue(Document document) {
-        List<String> links = document.select("a[href]")
+        document.select("a[href]")
             .stream()
             .map(element -> normalizeUrl(element.absUrl("href")))
             .filter(url -> url != null && !url.isBlank())
-            .toList();
-
-        for (String link : links) {
-            if (!isPageAlreadyCrawled(link) && !pendingCrawlUrls.contains(link)) {
-                pendingCrawlUrls.offer(link);
-            }
-        }
+            .forEach(url -> {
+                if (!isPageAlreadyCrawled(url) && !pendingCrawlUrls.contains(url)) {
+                    pendingCrawlUrls.offer(url);
+                }
+            });
     }
 
     private boolean isPageAlreadyCrawled(String url) {
@@ -201,17 +197,21 @@ public class SpiderService {
 
     private String extractLastModifyTime(Document document) {
         String lastModifiedHeader = document.connection().response().header("Last-Modified");
-        DateTimeFormatter formatter = DateTimeFormatter.RFC_1123_DATE_TIME.withLocale(Locale.ENGLISH);
-
+        
         if (lastModifiedHeader == null || lastModifiedHeader.isBlank()) {
-            return ZonedDateTime.now(ZoneOffset.UTC).format(formatter);
+            return ZonedDateTime.now(ZoneOffset.UTC).format(DateTimeFormatter.RFC_1123_DATE_TIME);
         }
 
+        return lastModifiedHeader;
+    }
+
+    private int extractContentSize(Document document) {
+        String contentLengthHeader = document.connection().response().header("Content-Length");
         try {
-            ZonedDateTime parsed = ZonedDateTime.parse(lastModifiedHeader, formatter);
-            return parsed.format(formatter);
-        } catch (DateTimeParseException ex) {
-            return ZonedDateTime.now(ZoneOffset.UTC).format(formatter);
+            if (contentLengthHeader != null) throw new NumberFormatException();
+            return Integer.parseInt(contentLengthHeader);
+        } catch (NumberFormatException ex) {
+            return document.outerHtml().getBytes(StandardCharsets.UTF_8).length;
         }
     }
 
@@ -221,12 +221,17 @@ public class SpiderService {
         }
 
         String trimmed = rawUrl.trim();
-        if (!trimmed.startsWith("http://") && !trimmed.startsWith("https://")) {
-            return null;
+        
+        //如果缺少协议，默认使用 https
+        if (!trimmed.matches("^[a-zA-Z][a-zA-Z0-9+.-]*://.*")) {
+            trimmed = "https://" + trimmed;
         }
 
+        // 移除 URL 中的 fragment 部分
         int fragmentIndex = trimmed.indexOf('#');
-        return fragmentIndex >= 0 ? trimmed.substring(0, fragmentIndex) : trimmed;
+        trimmed = fragmentIndex >= 0 ? trimmed.substring(0, fragmentIndex) : trimmed;
+
+        return trimmed;
     }
 
     private synchronized void resetSpider() {

@@ -1,7 +1,6 @@
 package com.hkust.goooogle.services;
 
 import IRUtilities.Porter;
-import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -9,10 +8,11 @@ import org.springframework.stereotype.Service;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.*;
+import java.util.function.Function;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 @Service
 public class IndexerService {
@@ -31,131 +31,14 @@ public class IndexerService {
         this.stemmer = new Porter();
     }
 
-    private Set<String> loadSetFromResource(String filename) {
-        try {
-            ClassPathResource resource = new ClassPathResource(filename);
-            String content = new String(resource.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
-            return Set.copyOf(
-                Arrays.stream(content.split("\\n"))
-                    .map(String::trim)
-                    .filter(line -> !line.isEmpty())
-                    .collect(Collectors.toSet())
-            );
-        } catch (IOException e) {
-            System.err.println("Failed to load " + filename + ": " + e.getMessage());
-            return Collections.emptySet();
-        }
-    }
-
-    private Map<String, String> loadMapFromResource(String filename) {
-        Map<String, String> map = new HashMap<>();
-        try {
-            ClassPathResource resource = new ClassPathResource(filename);
-            String content = new String(resource.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
-            Arrays.stream(content.split("\\n"))
-                .map(String::trim)
-                .filter(line -> !line.isEmpty() && line.contains("->"))
-                .forEach(line -> {
-                    String[] parts = line.split("->");
-                    if (parts.length == 2) {
-                        map.put(parts[0].trim(), parts[1].trim());
-                    }
-                });
-        } catch (IOException e) {
-            System.err.println("Failed to load " + filename + ": " + e.getMessage());
-        }
-        return map;
-    }
-
-    public Map<String, Integer> getWordsFreq(Document doc) {
-        doc.select("br").before(" ").remove();
-        
-        String text = doc.body().text();
-        
-        String lowerText = text.toLowerCase();
-        
-        String[] rawWords = lowerText.split("[\\s/\\-]+");
-        
-        Map<String, Integer> wordFreq = new HashMap<>();
-        
-        for (String rawWord : rawWords) {
-            if (rawWord.isEmpty()) {
-                continue;
-            }
-            
-            String expanded = expandContractions(rawWord);
-            
-            expanded = expandSymbols(expanded);
-            
-            expanded = expanded.replaceAll("'s$", "");
-            
-            for (String word : expanded.split("\\s+")) {
-                if (word.isEmpty()) {
-                    continue;
-                }
-                
-                if (word.length() < 2) {
-                    continue;
-                }
-                
-                if (isStopWord(word)) {
-                    continue;
-                }
-                
-                String stemmed = stemmer.stripAffixes(word);
-                
-                wordFreq.put(stemmed, wordFreq.getOrDefault(stemmed, 0) + 1);
-            }
-        }
-        
-        return wordFreq;
-    }
-
-    private String expandContractions(String word) {
-        return contractions.getOrDefault(word, word);
-    }
-
-    private String expandSymbols(String word) {
-        String result = word;
-        for (Map.Entry<String, String> entry : symbols.entrySet()) {
-            result = result.replace(entry.getKey(), " " + entry.getValue() + " ");
-        }
-        return result;
-    }
-
-    private boolean isStopWord(String word) {
-        return stopWords.contains(word);
-    }
-
-    public boolean indexPage(int pageId, String pageUrl) {
-        try {
-            String html = loadHtmlFromCache(pageId);
-            if (html == null) {
-                System.err.println("Cache file not found for page ID: " + pageId);
-                return false;
-            }
-
-            Document doc = Jsoup.parse(html, pageUrl);
-
-            return indexPage(pageId, pageUrl, doc);
-
-        } catch (Exception e) {
-            System.err.println("Error indexing page " + pageId + ": " + e.getMessage());
-            return false;
-        }
-    }
-
     public boolean indexPage(int pageId, String pageUrl, Document doc) {
-        if (doc == null) {
-            System.err.println("Document is null for page ID: " + pageId);
-            return false;
-        }
+        if (doc == null) return false;
 
         String title = doc.title();
-        Map<String, Integer> titleWords = title != null && !title.isEmpty() ? 
-            extractWordsFromText(title) : new HashMap<>();
+        Map<String, Long> titleWords = computeWordDistribution(title);
 
-        Map<String, Integer> bodyWords = getWordsFreq(doc);
+        String body = parseBody(doc);
+        Map<String, Long> bodyWords = computeWordDistribution(body);
 
         storeWordsAndKeywords(pageId, bodyWords, titleWords);
 
@@ -165,43 +48,61 @@ public class IndexerService {
         return true;
     }
 
-    private String loadHtmlFromCache(int pageId) throws IOException {
-        Path cacheFile = Path.of("cache_pages").resolve(pageId + ".html");
-        if (!Files.exists(cacheFile)) {
-            return null;
-        }
-        return Files.readString(cacheFile, StandardCharsets.UTF_8);
+    private static final String newLineHtmlKeywords = "br, p, div, h1, h2, h3, section, article, header, footer, nav, aside";
+    private String parseBody(Document doc) {
+        doc.select(newLineHtmlKeywords).append("\n");
+        return doc.body().text();
     }
 
-    private Map<String, Integer> extractWordsFromText(String text) {
-        String lowerText = text.toLowerCase();
-        String[] rawWords = lowerText.split("[\\s/\\-]+");
-        Map<String, Integer> wordFreq = new HashMap<>();
-        
-        for (String rawWord : rawWords) {
-            if (rawWord.isEmpty()) continue;
-            
-            String expanded = expandContractions(rawWord);
-            expanded = expandSymbols(expanded);
-            expanded = expanded.replaceAll("'s$", "");
-            
-            for (String word : expanded.split("\\s+")) {
-                if (word.isEmpty() || word.length() < 2 || isStopWord(word)) continue;
-                String stemmed = stemmer.stripAffixes(word);
-                wordFreq.put(stemmed, wordFreq.getOrDefault(stemmed, 0) + 1);
+    private static final Pattern wordSplitPattern = Pattern.compile("[\\s/\\-]+");
+    private Map<String, Long> computeWordDistribution(String content) {
+        if (content.trim().isEmpty()) {
+            return Collections.emptyMap();
+        }
+
+        return wordSplitPattern.splitAsStream(content.toLowerCase().trim())
+            .map(w -> removeTrailingPunctuation(w))
+            .filter(w -> !w.isEmpty())
+            .flatMap(w -> expandContractions(w))
+            .flatMap(w -> expandSymbols(w))
+            .map(w -> w.endsWith("'s") ? w.substring(0, w.length() - 2) : w)
+            .filter(w -> !stopWords.contains(w))
+            .map(w -> stemmer.stripAffixes(w))
+            .filter(w -> !w.isEmpty())
+            .collect(Collectors.groupingBy(Function.identity(), Collectors.counting()));
+    }
+
+    public static String removeTrailingPunctuation(String input) {
+        if (input.isEmpty()) return input;
+        int end = input.length();
+        while (end > 0 && !Character.isLetterOrDigit(input.charAt(end - 1))) {
+            end--;
+        }
+        return input.substring(0, end);
+    }
+
+    private Stream<String> expandContractions(String word) {
+        String expanded = contractions.get(word);
+        if (expanded == null) return Stream.of(word);
+        return Arrays.stream(expanded.split(" "));
+    }
+
+    private Stream<String> expandSymbols(String word) {
+        for (Map.Entry<String, String> entry : symbols.entrySet()) {
+            String suffix = entry.getKey();
+            if (word.endsWith(suffix)) {
+                String firstPart = word.substring(0, word.length() - suffix.length());
+                return Arrays.stream(new String[]{firstPart, entry.getValue()});
             }
         }
-        return wordFreq;
+        return Stream.of(word);
     }
 
-    private void storeWordsAndKeywords(int pageId, Map<String, Integer> bodyWords, Map<String, Integer> titleWords) {
+    private void storeWordsAndKeywords(int pageId, Map<String, Long> bodyWords, Map<String, Long> titleWords) {
+        if (bodyWords.isEmpty() && titleWords.isEmpty()) return;
         Set<String> allWords = new HashSet<>();
         allWords.addAll(bodyWords.keySet());
         allWords.addAll(titleWords.keySet());
-        
-        if (allWords.isEmpty()) {
-            return;
-        }
 
         batchInsertWords(new ArrayList<>(allWords));
         Map<String, Integer> wordIds = batchGetWordIds(new ArrayList<>(allWords));
@@ -210,8 +111,8 @@ public class IndexerService {
         for (String word : allWords) {
             Integer wordId = wordIds.get(word);
             if (wordId != null) {
-                int bodyCount = bodyWords.getOrDefault(word, 0);
-                int titleCount = titleWords.getOrDefault(word, 0);
+                long bodyCount = bodyWords.getOrDefault(word, 0L);
+                long titleCount = titleWords.getOrDefault(word, 0L);
                 keywordBatch.add(new Object[]{pageId, wordId, bodyCount, titleCount});
             }
         }
@@ -222,8 +123,6 @@ public class IndexerService {
     }
 
     private void batchInsertWords(List<String> words) {
-        if (words.isEmpty()) return;
-
         try {
             List<Object[]> batch = words.stream()
                 .map(word -> new Object[]{word})
@@ -404,18 +303,41 @@ public class IndexerService {
             return Collections.emptySet();
         }
     }
-
-    public List<String> searchKeywords(String query) {
-        if (query == null || query.isEmpty()) {
-            return new ArrayList<>();
+    
+    private Set<String> loadSetFromResource(String filename) {
+        try {
+            ClassPathResource resource = new ClassPathResource(filename);
+            String content = new String(resource.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+            return Set.copyOf(
+                Arrays.stream(content.split("\\n"))
+                    .map(String::trim)
+                    .filter(line -> !line.isEmpty())
+                    .collect(Collectors.toSet())
+            );
+        } catch (IOException e) {
+            System.err.println("Failed to load " + filename + ": " + e.getMessage());
+            return Collections.emptySet();
         }
-        
-        String searchPattern = "%" + query.toLowerCase() + "%";
-        return db.query(
-            "SELECT word FROM words WHERE LOWER(word) LIKE ? ORDER BY word ASC",
-            new Object[]{searchPattern},
-            (rs, rowNum) -> rs.getString("word")
-        );
+    }
+
+    private Map<String, String> loadMapFromResource(String filename) {
+        Map<String, String> map = new HashMap<>();
+        try {
+            ClassPathResource resource = new ClassPathResource(filename);
+            String content = new String(resource.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+            Arrays.stream(content.split("\\n"))
+                .map(String::trim)
+                .filter(line -> !line.isEmpty() && line.contains("->"))
+                .forEach(line -> {
+                    String[] parts = line.split("->");
+                    if (parts.length == 2) {
+                        map.put(parts[0].trim(), parts[1].trim());
+                    }
+                });
+        } catch (IOException e) {
+            System.err.println("Failed to load " + filename + ": " + e.getMessage());
+        }
+        return map;
     }
 
     public String getIndexStats() {
