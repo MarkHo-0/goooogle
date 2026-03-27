@@ -1,68 +1,32 @@
 package com.hkust.goooogle.models;
-
-import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
-public class Page {
+public record Page(String url, String title, String lastModifyTime, int contentSize, Map<String, Integer> keywordsWithCounts, List<Page> childPages, List<Page> parentPages) {
 
-    private String url;
-    private LocalDateTime lastModifyTime;
-    private int contentSize;
-    private List<String> keywords;
-    private List<PageSimple> childPages;
+    public String toMultiLineString(boolean showKeywords, boolean showLinkedPages) {
+        StringBuilder sb = new StringBuilder();
+        
+        sb.append(title).append("\n");
+        sb.append(url).append("\n");
+        sb.append(lastModifyTime).append(", ").append(contentSize).append(" bytes\n");
 
-    public Page() {
-    }
+        if (showKeywords && !keywordsWithCounts.isEmpty()) {
+            String keywordsStr = keywordsWithCounts.entrySet().stream()
+                .map(e -> e.getKey() + " (" + e.getValue() + ")")
+                .collect(Collectors.joining("; "));
+            sb.append(keywordsStr).append("\n");
+        }
 
-    public Page(String url,
-                LocalDateTime lastModifyTime,
-                int contentSize,
-                List<String> keywords,
-                List<PageSimple> childPages) {
-        this.url = url;
-        this.lastModifyTime = lastModifyTime;
-        this.contentSize = contentSize;
-        this.keywords = keywords;
-        this.childPages = childPages;
-    }
+        if (showLinkedPages && !parentPages.isEmpty()) {
+            parentPages.forEach(p -> sb.append(p.url()).append("\n"));
+        }
 
-    public String getUrl() {
-        return url;
-    }
-
-    public void setUrl(String url) {
-        this.url = url;
-    }
-
-    public LocalDateTime getLastModifyTime() {
-        return lastModifyTime;
-    }
-
-    public void setLastModifyTime(LocalDateTime lastModifyTime) {
-        this.lastModifyTime = lastModifyTime;
-    }
-
-    public int getContentSize() {
-        return contentSize;
-    }
-
-    public void setContentSize(int contentSize) {
-        this.contentSize = contentSize;
-    }
-
-    public List<String> getKeywords() {
-        return keywords;
-    }
-
-    public void setKeywords(List<String> keywords) {
-        this.keywords = keywords;
-    }
-
-    public List<PageSimple> getChildPages() {
-        return childPages;
-    }
-
-    public void setChildPages(List<PageSimple> childPages) {
-        this.childPages = childPages;
+        if (showLinkedPages && !childPages.isEmpty()) {
+            childPages.forEach(p -> sb.append(p.url()).append("\n"));
+        }
+    
+        return sb.toString();
     }
 }
