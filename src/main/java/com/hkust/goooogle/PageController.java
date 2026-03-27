@@ -1,15 +1,20 @@
 package com.hkust.goooogle;
 
+import com.hkust.goooogle.models.ExportedPage;
 import com.hkust.goooogle.models.Page;
 import com.hkust.goooogle.services.KeywordService;
 import com.hkust.goooogle.services.SearchService;
 import com.hkust.goooogle.services.SpiderService;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 @Controller
@@ -74,5 +79,20 @@ public class PageController {
         }
         model.addAttribute("keywords", keywords);
         return "keywords";
+    }
+
+    @GetMapping("/spider/export")
+    public ResponseEntity<String> exportDatabase() {
+        List<ExportedPage> pages = spiderService.getAllIndexedPages(10, 10);
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.TEXT_PLAIN);
+        headers.setContentDispositionFormData("attachment", "spider_result.txt");
+        
+        StringBuilder sb = new StringBuilder();
+        for (ExportedPage page : pages) {
+            sb.append(page.toExportingString(pages));
+        }
+        return ResponseEntity.ok().headers(headers).body(sb.toString());
     }
 }

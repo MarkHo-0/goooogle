@@ -1,8 +1,11 @@
 package com.hkust.goooogle.services;
 
+import com.hkust.goooogle.models.ExportedPage;
+import com.hkust.goooogle.models.Page;
 import org.jsoup.Jsoup;
 import org.jsoup.Connection;
 import org.jsoup.nodes.Document;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.support.GeneratedKeyHolder;
 import org.springframework.jdbc.support.KeyHolder;
@@ -15,10 +18,18 @@ import java.nio.file.Path;
 import java.time.ZonedDateTime;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
 import java.util.Queue;
 import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 @Service
 public class SpiderService {
@@ -78,8 +89,10 @@ public class SpiderService {
             remainingCrawlQuota--;
         }
 
-        indexerService.resolvePendingLinksFromAllPages();
-
+        if (!urlCrawlHistory.isEmpty()) {
+            indexerService.resolvePendingLinksFromAllPages();
+        }
+        
         resetSpider();
     }
 
@@ -240,5 +253,16 @@ public class SpiderService {
 
     public boolean isRunning() {
         return running;
+    }
+
+    static final ClassPathResource sqlFile_QueryForExport = new ClassPathResource("sql/query_for_export.sql");
+    public List<ExportedPage> getAllIndexedPages(int childLinkLimit, int keywordLimit) {
+        try {
+            String sql = new String(sqlFile_QueryForExport.getInputStream().readAllBytes());
+            return db.query(sql, ExportedPage.sqlMapper, childLinkLimit, keywordLimit);
+        } catch (IOException ex) {
+            System.out.println("Failed to load SQL query for exporting: " + ex.getMessage());
+            return Collections.emptyList();
+        }
     }
 }
