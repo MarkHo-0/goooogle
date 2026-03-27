@@ -15,15 +15,17 @@ import java.nio.file.Path;
 import java.time.ZonedDateTime;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
+import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.Queue;
-import java.util.List;
+import java.util.Set;
 
 @Service
 public class SpiderService {
     private final JdbcTemplate db;
     private final IndexerService indexerService;
     private final Queue<String> pendingCrawlUrls = new LinkedList<>();
+    private final Set<String> urlCrawlHistory = new HashSet<>();
     private int remainingCrawlQuota = 0;
     private volatile boolean cacheHtmlEnabled = false;
 
@@ -51,7 +53,6 @@ public class SpiderService {
             return false;
         }
 
-        pendingCrawlUrls.clear();
         remainingCrawlQuota = maxPages;
         cacheHtmlEnabled = cacheHtml;
         pendingCrawlUrls.offer(normalizedStartUrl);
@@ -71,11 +72,12 @@ public class SpiderService {
             CrawledPage crawledPage = crawlPage(nextUrl);
             if (crawledPage == null) continue;
 
+            addChildLinksToPendingQueue(crawledPage.document(), crawledPage.pageId());
+
             indexerService.indexPage(crawledPage.pageId(), crawledPage.url(), crawledPage.document());
             remainingCrawlQuota--;
         }
 
-        System.out.println("Phase 1 complete: All pages indexed. Starting Phase 2: Resolving pending links");
         indexerService.resolvePendingLinksFromAllPages();
 
         resetSpider();
@@ -110,7 +112,6 @@ public class SpiderService {
             if (cacheHtmlEnabled) {
                 savePageToLocalCache(pageId, document.outerHtml());
             }
-            addChildLinksToPendingQueue(document);
             System.out.println("Crawled Successfully: " + url);
             return new CrawledPage(pageId, url, document);
         } catch (Exception ex) {
@@ -119,28 +120,21 @@ public class SpiderService {
         }
     }
 
+    private static final String updatePageSQL = "UPDATE pages SET title = ?, last_modify_time = ?, content_size = ? WHERE id = ?";
+    private static final String insertPageSQL = "INSERT OR IGNORE INTO pages(url, title, last_modify_time, content_size) VALUES (?, ?, ?, ?)";
     private int upsertPage(String url, Document document, ExistingPageInfo existingPage) {
         String lastModifyTime = extractLastModifyTime(document);
         int contentSize = extractContentSize(document);
         String title = document.title();
 
         if (existingPage != null) {
-            db.update(
-                "UPDATE pages SET title = ?, last_modify_time = ?, content_size = ? WHERE id = ?",
-                title,
-                lastModifyTime,
-                contentSize,
-                existingPage.id()
-            );
+            db.update(updatePageSQL, title, lastModifyTime,contentSize, existingPage.id());
             return existingPage.id();
         }
 
         KeyHolder keyHolder = new GeneratedKeyHolder();
         int rows = db.update(connection -> {
-            var statement = connection.prepareStatement(
-                "INSERT OR IGNORE INTO pages(url, title, last_modify_time, content_size) VALUES (?, ?, ?, ?)",
-                new String[]{"id"}
-            );
+            var statement = connection.prepareStatement(insertPageSQL, new String[]{"id"});
             statement.setString(1, url);
             statement.setString(2, title);
             statement.setString(3, lastModifyTime);
@@ -153,9 +147,9 @@ public class SpiderService {
         return keyHolder.getKey().intValue();
     }
 
+    private static final String queryExistingPageSQL = "SELECT id, last_modify_time FROM pages WHERE url = ? LIMIT 1";
     private ExistingPageInfo getExistingPageInfo(String url) {
-        return db.query(
-            "SELECT id, last_modify_time FROM pages WHERE url = ? LIMIT 1",
+        return db.query(queryExistingPageSQL,
             rs -> {
                 if (!rs.next()) return null;
 
@@ -174,25 +168,22 @@ public class SpiderService {
         Files.writeString(cacheFilePath, html, StandardCharsets.UTF_8);
     }
 
-    private void addChildLinksToPendingQueue(Document document) {
+    private final static String insertPendingLinkSQL = "INSERT INTO pending_links(page_id, outbound_link) VALUES (?, ?)";
+    private void addChildLinksToPendingQueue(Document document, int currentPageId) {
         document.select("a[href]")
             .stream()
             .map(element -> normalizeUrl(element.absUrl("href")))
-            .filter(url -> url != null && !url.isBlank())
+            .filter(url -> !url.isBlank())
             .forEach(url -> {
-                if (!isPageAlreadyCrawled(url) && !pendingCrawlUrls.contains(url)) {
+                if (!urlCrawlHistory.contains(url)) {
                     pendingCrawlUrls.offer(url);
+                    urlCrawlHistory.add(url);
                 }
-            });
-    }
 
-    private boolean isPageAlreadyCrawled(String url) {
-        List<Integer> rows = db.queryForList(
-            "SELECT 1 FROM pages WHERE url = ? LIMIT 1",
-            Integer.class,
-            url
-        );
-        return !rows.isEmpty();
+                try {
+                    db.update(insertPendingLinkSQL, currentPageId, url);
+                } catch (Exception e) {}
+            });
     }
 
     private String extractLastModifyTime(Document document) {
@@ -222,7 +213,7 @@ public class SpiderService {
 
         String trimmed = rawUrl.trim();
         
-        //如果缺少协议，默认使用 https
+        //如果缺少協議頭，預設使用 https
         if (!trimmed.matches("^[a-zA-Z][a-zA-Z0-9+.-]*://.*")) {
             trimmed = "https://" + trimmed;
         }
@@ -236,6 +227,7 @@ public class SpiderService {
 
     private synchronized void resetSpider() {
         pendingCrawlUrls.clear();
+        urlCrawlHistory.clear();
         remainingCrawlQuota = 0;
         cacheHtmlEnabled = false;
         running = false;

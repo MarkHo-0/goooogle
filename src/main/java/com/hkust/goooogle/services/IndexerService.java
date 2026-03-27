@@ -42,9 +42,7 @@ public class IndexerService {
 
         storeWordsAndKeywords(pageId, bodyWords, titleWords);
 
-        storeHyperlinksAsPending(pageId, doc);
-
-        System.out.println("Indexed page " + pageId + " with " + bodyWords.size() + " unique words");
+        System.out.println("Indexed page " + pageId + " with " + bodyWords.size() + " words in body and " + titleWords.size() + " words in title");
         return true;
     }
 
@@ -168,96 +166,31 @@ public class IndexerService {
         }
     }
 
-    private void storeHyperlinksAsPending(int pageId, Document doc) {
-        try {
-            List<String> hyperlinks = doc.select("a[href]")
-                .stream()
-                .map(element -> element.absUrl("href"))
-                .filter(url -> url != null && !url.isBlank())
-                .distinct()
-                .toList();
-
-            if (hyperlinks.isEmpty()) {
-                System.out.println("No hyperlinks to store for page " + pageId);
-                return;
-            }
-
-            List<Object[]> pendingBatch = new ArrayList<>();
-            for (String url : hyperlinks) {
-                pendingBatch.add(new Object[]{pageId, url});
-            }
-
-            db.batchUpdate("INSERT OR IGNORE INTO pending(page_id, child_page_link) VALUES (?, ?)", pendingBatch);
-            System.out.println("Stored " + pendingBatch.size() + " hyperlinks as pending for page " + pageId);
-
-        } catch (Exception e) {
-            System.err.println("Error storing hyperlinks as pending for page " + pageId + ": " + e.getMessage());
-            e.printStackTrace();
-        }
-    }
-
     public void resolvePendingLinksFromAllPages() {
         try {
-            Integer pendingCount = db.queryForObject("SELECT COUNT(*) FROM pending", Integer.class);
-            System.out.println("Starting to resolve " + (pendingCount == null ? 0 : pendingCount) + " pending links");
+            // 找到所有 pending_links 中的 outbound_link 已經存在於 pages 表中的，並且將它們轉換為 links 記錄
+            final String insertLinksSQL = """
+                INSERT OR IGNORE INTO links(parent_page_id, child_page_id)
+                SELECT DISTINCT pl.page_id, p.id
+                FROM pending_links pl
+                JOIN pages p ON pl.outbound_link = p.url
+                WHERE pl.page_id != p.id
+                """;
             
-            if (pendingCount == null || pendingCount == 0) {
-                System.out.println("No pending links to resolve");
-                return;
-            }
+            int insertedLinks = db.update(insertLinksSQL);
+            System.out.println("Created " + insertedLinks + " links via SQL join");
 
-            List<Map<String, Object>> pendingEntries = db.queryForList(
-                "SELECT rowid, page_id, child_page_link FROM pending ORDER BY rowid ASC"
-            );
-
-            System.out.println("Processing " + pendingEntries.size() + " pending entries (BFS order preserved by rowid)");
-
-            int resolvedCount = 0;
-            int deletedCount = 0;
+            // 刪除已經解決的 pending_links 記錄
+            final String deleteResolvedSQL = """
+                DELETE FROM pending_links
+                WHERE outbound_link IN (SELECT url FROM pages)
+                """;
             
-            Set<String> existingLinkPairs = getExistingLinkPairs();
-
-            for (Map<String, Object> pendingEntry : pendingEntries) {
-                int parentPageId = ((Number) pendingEntry.get("page_id")).intValue();
-                String childPageUrl = (String) pendingEntry.get("child_page_link");
-                long rowid = ((Number) pendingEntry.get("rowid")).longValue();
-                
-                Integer childPageId = db.queryForObject(
-                    "SELECT id FROM pages WHERE url = ?",
-                    Integer.class,
-                    childPageUrl
-                );
-
-                if (childPageId != null && childPageId != parentPageId) {
-                    String forwardKey = parentPageId + "-" + childPageId;
-                    String reverseKey = childPageId + "-" + parentPageId;
-                    
-                    if (!existingLinkPairs.contains(forwardKey) && !existingLinkPairs.contains(reverseKey)) {
-                        int rows = db.update(
-                            "INSERT OR IGNORE INTO links(parent_page_id, child_page_id) VALUES (?, ?)",
-                            parentPageId,
-                            childPageId
-                        );
-                        if (rows > 0) {
-                            existingLinkPairs.add(forwardKey);
-                            resolvedCount++;
-                            System.out.println("Created link: " + parentPageId + " -> " + childPageId + " (from URL: " + childPageUrl + ")");
-                        }
-                    } else if (existingLinkPairs.contains(reverseKey)) {
-                        System.out.println("Skipped link (" + parentPageId + "," + childPageId + ") - reverse link exists");
-                    }
-                }
-
-                int deleted = db.update("DELETE FROM pending WHERE rowid = ?", rowid);
-                if (deleted > 0) {
-                    deletedCount++;
-                }
-            }
-
-            System.out.println("Resolved pending links: created " + resolvedCount + " links, deleted " + deletedCount + " pending entries");
+            int deletedCount = db.update(deleteResolvedSQL);
+            System.out.println("Deleted " + deletedCount + " resolved pending entries");
             
-            Integer remainingPending = db.queryForObject("SELECT COUNT(*) FROM pending", Integer.class);
-            System.out.println("Remaining pending entries: " + (remainingPending == null ? 0 : remainingPending) + " (URLs not yet in pages table)");
+            Integer remainingPending = db.queryForObject("SELECT COUNT(*) FROM pending_links", Integer.class);
+            System.out.println("Remaining pending entries: " + (remainingPending == null ? 0 : remainingPending) + " (URLs not yet crawled)");
             
         } catch (Exception e) {
             System.err.println("Error resolving pending links from all pages: " + e.getMessage());
@@ -265,45 +198,6 @@ public class IndexerService {
         }
     }
 
-    public void cleanupPendingLinks() {
-        try {
-            Integer pendingCount = db.queryForObject("SELECT COUNT(*) FROM pending", Integer.class);
-            if (pendingCount == null || pendingCount == 0) {
-                System.out.println("No pending links to clean up");
-                return;
-            }
-
-            int rowsDeleted = db.update(
-                "DELETE FROM pending WHERE child_page_link IN (SELECT url FROM pages)"
-            );
-            System.out.println("Cleaned up " + rowsDeleted + " redundant pending entries (child pages already indexed)");
-
-            Integer remainingCount = db.queryForObject("SELECT COUNT(*) FROM pending", Integer.class);
-            System.out.println("Remaining pending entries: " + (remainingCount == null ? 0 : remainingCount) + " (not yet crawled)");
-        } catch (Exception e) {
-            System.err.println("Error cleaning up pending links: " + e.getMessage());
-            e.printStackTrace();
-        }
-    }
-
-    private Set<String> getExistingLinkPairs() {
-        try {
-            Set<String> linkPairs = new HashSet<>();
-            List<Map<String, Object>> links = db.queryForList(
-                "SELECT parent_page_id, child_page_id FROM links"
-            );
-            for (Map<String, Object> link : links) {
-                int parent = ((Number) link.get("parent_page_id")).intValue();
-                int child = ((Number) link.get("child_page_id")).intValue();
-                linkPairs.add(parent + "-" + child);
-            }
-            return linkPairs;
-        } catch (Exception e) {
-            System.err.println("Error fetching existing link pairs: " + e.getMessage());
-            return Collections.emptySet();
-        }
-    }
-    
     private Set<String> loadSetFromResource(String filename) {
         try {
             ClassPathResource resource = new ClassPathResource(filename);

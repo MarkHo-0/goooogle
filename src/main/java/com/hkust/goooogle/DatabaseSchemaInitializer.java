@@ -77,17 +77,17 @@ public class DatabaseSchemaInitializer implements CommandLineRunner {
             """);
 
         jdbcTemplate.execute("""
-            CREATE TABLE IF NOT EXISTS pending (
+            CREATE TABLE IF NOT EXISTS pending_links (
                 page_id INTEGER NOT NULL,
-                child_page_link TEXT NOT NULL,
-                PRIMARY KEY (page_id, child_page_link),
+                outbound_link TEXT NOT NULL,
+                PRIMARY KEY (page_id, outbound_link),
                 FOREIGN KEY (page_id) REFERENCES pages(id) ON DELETE CASCADE
             )
             """);
 
         jdbcTemplate.execute("""
-            CREATE INDEX IF NOT EXISTS idx_pending_child_page_link
-            ON pending (child_page_link)
+            CREATE INDEX IF NOT EXISTS idx_pending_links_outbound_link
+            ON pending_links (outbound_link)
             """);
     }
 }
