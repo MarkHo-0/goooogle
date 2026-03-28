@@ -1,7 +1,6 @@
 package com.hkust.goooogle.services;
 
 import com.hkust.goooogle.models.ExportedPage;
-import com.hkust.goooogle.models.Page;
 import org.jsoup.Jsoup;
 import org.jsoup.Connection;
 import org.jsoup.nodes.Document;
@@ -18,18 +17,12 @@ import java.nio.file.Path;
 import java.time.ZonedDateTime;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.Map;
 import java.util.Queue;
 import java.util.Set;
-import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 
 @Service
 public class SpiderService {
@@ -76,6 +69,8 @@ public class SpiderService {
     }
 
     private void executeCrawlingAndIndexing() {
+        long startTime = System.currentTimeMillis();
+        
         while (remainingCrawlQuota > 0) {
             String nextUrl = pendingCrawlUrls.poll();
             if (nextUrl == null) break;
@@ -94,6 +89,9 @@ public class SpiderService {
         }
         
         resetSpider();
+        
+        double duration = (System.currentTimeMillis() - startTime) / 1000.0;
+        System.out.println("Spider completed in " + String.format("%.2f", duration) + " seconds");
     }
 
     private CrawledPage crawlPage(String url) {
@@ -101,7 +99,7 @@ public class SpiderService {
             ExistingPageInfo existingPage = getExistingPageInfo(url);
             Connection connection = Jsoup.connect(url).followRedirects(true).ignoreHttpErrors(true);
 
-            // 如果数据库中已有记录且包含上次修改时间，则在请求头中添加 If-Modified-Since，以利用服务器的缓存机制减少不必要的数据传输
+            // 如果數據庫中有舊紀錄，則在請求頭添加該紀錄的時間，讓對方伺服器檢查是否需要更新索引
             if (existingPage != null && existingPage.lastModifyTime() != null && !existingPage.lastModifyTime().isBlank()) {
                 connection.header("If-Modified-Since", existingPage.lastModifyTime());
             }
@@ -110,7 +108,7 @@ public class SpiderService {
             Connection.Response response = connection.execute();
 
             if (response.statusCode() >= 400) {
-                System.err.println("Failed to crawl (HTTP " + response.statusCode() + "): " + url);
+                System.out.println("Failed to crawl (HTTP " + response.statusCode() + "): " + url);
                 return null;
             }
 
@@ -119,13 +117,21 @@ public class SpiderService {
                 return null;
             }
 
-            // 解析页面内容并更新数据库记录
+            // 如果有舊紀錄且伺服器返回內容，代表網站更新了，因此要重新索引網站
+            if (existingPage != null && response.body() != null) {
+                // 因為有 delele cascaded，所以可以只刪除page，資料庫自動刪除其它關聯的資料
+                db.update("DELETE FROM pages WHERE id = ?", existingPage.id());
+                System.out.println("Removed outdated page: " + url);
+            }
+
+            // 解析頁面
             Document document = response.parse();
-            int pageId = upsertPage(url, document, existingPage);
+            int pageId = insertPage(url, document);
+
             if (cacheHtmlEnabled) {
                 savePageToLocalCache(pageId, document.outerHtml());
             }
-            System.out.println("Crawled Successfully: " + url);
+
             return new CrawledPage(pageId, url, document);
         } catch (Exception ex) {
             System.err.println("Failed to crawl: " + url + ": " + ex.getMessage());
@@ -133,17 +139,11 @@ public class SpiderService {
         }
     }
 
-    private static final String updatePageSQL = "UPDATE pages SET title = ?, last_modify_time = ?, content_size = ? WHERE id = ?";
-    private static final String insertPageSQL = "INSERT OR IGNORE INTO pages(url, title, last_modify_time, content_size) VALUES (?, ?, ?, ?)";
-    private int upsertPage(String url, Document document, ExistingPageInfo existingPage) {
+    private static final String insertPageSQL = "INSERT INTO pages(url, title, last_modify_time, content_size) VALUES (?, ?, ?, ?)";
+    private int insertPage(String url, Document document) {
         String lastModifyTime = extractLastModifyTime(document);
         int contentSize = extractContentSize(document);
         String title = document.title();
-
-        if (existingPage != null) {
-            db.update(updatePageSQL, title, lastModifyTime,contentSize, existingPage.id());
-            return existingPage.id();
-        }
 
         KeyHolder keyHolder = new GeneratedKeyHolder();
         int rows = db.update(connection -> {
