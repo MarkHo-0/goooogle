@@ -235,6 +235,9 @@ public class SpiderService {
         int fragmentIndex = trimmed.indexOf('#');
         trimmed = fragmentIndex >= 0 ? trimmed.substring(0, fragmentIndex) : trimmed;
 
+        // 將最後的斜杠移除
+        trimmed = trimmed.replaceAll("/+$", "");
+
         return trimmed;
     }
 
