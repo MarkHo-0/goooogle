@@ -58,9 +58,8 @@ public class PageController {
     @PostMapping("/spider")
     public String startSpider(@RequestParam String url,
                               @RequestParam int maxPages,
-                              @RequestParam(defaultValue = "false") boolean cacheHtml,
                               Model model) {
-        spiderService.startSpider(url, maxPages, cacheHtml);
+        spiderService.startSpider(url, maxPages);
         model.addAttribute("pageTitle", "Spider");
         model.addAttribute("totalPages", spiderService.getTotalIndexedPages());
         model.addAttribute("isRunning", spiderService.isRunning());

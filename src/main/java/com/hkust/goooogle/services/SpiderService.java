@@ -12,8 +12,6 @@ import org.springframework.stereotype.Service;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.time.ZonedDateTime;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
@@ -31,7 +29,6 @@ public class SpiderService {
     private final Queue<String> pendingCrawlUrls = new LinkedList<>();
     private final Set<String> urlCrawlHistory = new HashSet<>();
     private int remainingCrawlQuota = 0;
-    private volatile boolean cacheHtmlEnabled = false;
 
     private volatile boolean running = false;
 
@@ -43,7 +40,7 @@ public class SpiderService {
         this.indexerService = indexerService;
     }
 
-    public synchronized boolean startSpider(String url, int maxPages, boolean cacheHtml) {
+    public synchronized boolean startSpider(String url, int maxPages) {
         if (running) {
             return false;
         }
@@ -58,7 +55,6 @@ public class SpiderService {
         }
 
         remainingCrawlQuota = maxPages;
-        cacheHtmlEnabled = cacheHtml;
         pendingCrawlUrls.offer(normalizedStartUrl);
         running = true;
 
@@ -128,10 +124,6 @@ public class SpiderService {
             Document document = response.parse();
             int pageId = insertPage(url, document);
 
-            if (cacheHtmlEnabled) {
-                savePageToLocalCache(pageId, document.outerHtml());
-            }
-
             return new CrawledPage(pageId, url, document);
         } catch (Exception ex) {
             System.err.println("Failed to crawl: " + url + ": " + ex.getMessage());
@@ -172,13 +164,6 @@ public class SpiderService {
             },
             url
         );
-    }
-
-    private void savePageToLocalCache(int pageId, String html) throws IOException {
-        Path cacheDir = Path.of("cache_pages");
-        Files.createDirectories(cacheDir);
-        Path cacheFilePath = cacheDir.resolve(pageId + ".html");
-        Files.writeString(cacheFilePath, html, StandardCharsets.UTF_8);
     }
 
     private final static String insertPendingLinkSQL = "INSERT INTO pending_links(page_id, outbound_link) VALUES (?, ?)";
@@ -245,7 +230,6 @@ public class SpiderService {
         pendingCrawlUrls.clear();
         urlCrawlHistory.clear();
         remainingCrawlQuota = 0;
-        cacheHtmlEnabled = false;
         running = false;
     }
 

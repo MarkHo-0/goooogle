@@ -54,9 +54,7 @@ public class IndexerService {
 
     private static final Pattern wordSplitPattern = Pattern.compile("[\\s/\\-]+");
     private Map<String, Long> computeWordDistribution(String content) {
-        if (content.trim().isEmpty()) {
-            return Collections.emptyMap();
-        }
+        if (content.isBlank()) return Collections.emptyMap();
 
         return wordSplitPattern.splitAsStream(content.toLowerCase().trim())
             .map(w -> removeTrailingPunctuation(w))
@@ -177,8 +175,7 @@ public class IndexerService {
                 WHERE pl.page_id != p.id
                 """;
             
-            int insertedLinks = db.update(insertLinksSQL);
-            System.out.println("Created " + insertedLinks + " links via SQL join");
+            db.update(insertLinksSQL);
 
             // 刪除已經解決的 pending_links 記錄
             final String deleteResolvedSQL = """
@@ -186,8 +183,7 @@ public class IndexerService {
                 WHERE outbound_link IN (SELECT url FROM pages)
                 """;
             
-            int deletedCount = db.update(deleteResolvedSQL);
-            System.out.println("Deleted " + deletedCount + " resolved pending entries");
+            db.update(deleteResolvedSQL);
             
             Integer remainingPending = db.queryForObject("SELECT COUNT(*) FROM pending_links", Integer.class);
             System.out.println("Remaining pending entries: " + (remainingPending == null ? 0 : remainingPending) + " (URLs not yet crawled)");
