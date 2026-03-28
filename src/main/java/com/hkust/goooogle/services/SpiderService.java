@@ -109,7 +109,12 @@ public class SpiderService {
             }
 
             if (response.statusCode() == 304) {
-                System.out.println("Skipped (Not Modified): " + url);
+                System.out.println("Skipped (The target indicates no update): " + url);
+                return null;
+            }
+
+            if (existingPage != null && existingPage.lastModifyTime().equals(response.header("Last-Modified"))) {
+                System.out.println("Skipped (The target's last modified time is the same): " + url);
                 return null;
             }
 
