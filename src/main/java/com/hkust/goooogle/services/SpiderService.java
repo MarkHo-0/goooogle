@@ -93,7 +93,7 @@ public class SpiderService {
     private CrawledPage crawlPage(String url) {
         try {
             ExistingPageInfo existingPage = getExistingPageInfo(url);
-            Connection connection = Jsoup.connect(url).followRedirects(true).ignoreHttpErrors(true);
+            Connection connection = Jsoup.connect(url).followRedirects(true).ignoreHttpErrors(true).ignoreContentType(true);
 
             // 如果數據庫中有舊紀錄，則在請求頭添加該紀錄的時間，讓對方伺服器檢查是否需要更新索引
             if (existingPage != null && existingPage.lastModifyTime() != null && !existingPage.lastModifyTime().isBlank()) {
