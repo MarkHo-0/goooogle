@@ -50,8 +50,6 @@ public class PageController {
     @GetMapping("/spider")
     public String spider(Model model) {
         model.addAttribute("pageTitle", "Spider");
-        model.addAttribute("totalPages", spiderService.getTotalIndexedPages());
-        model.addAttribute("isRunning", spiderService.isRunning());
         return "spider";
     }
 
@@ -61,8 +59,6 @@ public class PageController {
                               Model model) {
         spiderService.startSpider(url, maxPages);
         model.addAttribute("pageTitle", "Spider");
-        model.addAttribute("totalPages", spiderService.getTotalIndexedPages());
-        model.addAttribute("isRunning", spiderService.isRunning());
         return "spider";
     }
 
