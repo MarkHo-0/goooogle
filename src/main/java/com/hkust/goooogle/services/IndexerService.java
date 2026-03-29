@@ -5,9 +5,11 @@ import org.jsoup.nodes.Document;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.sql.SQLException;
 import java.util.*;
 import java.util.function.Function;
 import java.util.regex.Pattern;
@@ -164,34 +166,29 @@ public class IndexerService {
         }
     }
 
+    @Transactional(rollbackFor = Exception.class)
     public void resolvePendingLinksFromAllPages() {
-        try {
-            // 找到所有 pending_links 中的 outbound_link 已經存在於 pages 表中的，並且將它們轉換為 links 記錄
-            final String insertLinksSQL = """
-                INSERT OR IGNORE INTO links(parent_page_id, child_page_id)
-                SELECT DISTINCT pl.page_id, p.id
-                FROM pending_links pl
-                JOIN pages p ON pl.outbound_link = p.url
-                WHERE pl.page_id != p.id
-                """;
-            
-            db.update(insertLinksSQL);
+        // 找到所有 pending_links 中的 outbound_link 已經存在於 pages 表中的，並且將它們轉換為 links 記錄
+        final String insertLinksSQL = """
+            INSERT OR IGNORE INTO links(parent_page_id, child_page_id)
+            SELECT DISTINCT pl.page_id, p.id
+            FROM pending_links pl
+            JOIN pages p ON pl.outbound_link = p.url
+            WHERE pl.page_id != p.id
+            """;
 
-            // 刪除已經解決的 pending_links 記錄
-            final String deleteResolvedSQL = """
-                DELETE FROM pending_links
-                WHERE outbound_link IN (SELECT url FROM pages)
-                """;
-            
-            db.update(deleteResolvedSQL);
-            
-            Integer remainingPending = db.queryForObject("SELECT COUNT(*) FROM pending_links", Integer.class);
-            System.out.println("Remaining pending entries: " + (remainingPending == null ? 0 : remainingPending) + " (URLs not yet crawled)");
-            
-        } catch (Exception e) {
-            System.err.println("Error resolving pending links from all pages: " + e.getMessage());
-            e.printStackTrace();
-        }
+        db.update(insertLinksSQL);
+
+        // 刪除已經解決的 pending_links 記錄
+        final String deleteResolvedSQL = """
+            DELETE FROM pending_links
+            WHERE outbound_link IN (SELECT url FROM pages)
+            """;
+
+        db.update(deleteResolvedSQL);
+
+        Integer remainingPending = db.queryForObject("SELECT COUNT(*) FROM pending_links", Integer.class);
+        System.out.println("Remaining pending entries: " + (remainingPending == null ? 0 : remainingPending) + " (URLs not yet crawled)");
     }
 
     private Set<String> loadSetFromResource(String filename) {
