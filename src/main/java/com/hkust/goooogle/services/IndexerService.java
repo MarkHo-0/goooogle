@@ -102,67 +102,46 @@ public class IndexerService {
         allWords.addAll(bodyWords.keySet());
         allWords.addAll(titleWords.keySet());
 
-        batchInsertWords(new ArrayList<>(allWords));
-        Map<String, Integer> wordIds = batchGetWordIds(new ArrayList<>(allWords));
+        String insertWordsSql = "INSERT OR IGNORE INTO words(word) VALUES (?)";
+        String insertKeywordsSql = "INSERT OR REPLACE INTO keywords(page_id, word_id, body_count, title_count) " +
+                                   "SELECT ?, id, ?, ? FROM words WHERE word = ?";
 
-        List<Object[]> keywordBatch = new ArrayList<>();
-        for (String word : allWords) {
-            Integer wordId = wordIds.get(word);
-            if (wordId != null) {
+        if (db.getDataSource() == null) return;
+
+        try (java.sql.Connection conn = db.getDataSource().getConnection();
+             java.sql.PreparedStatement psWords = conn.prepareStatement(insertWordsSql);
+             java.sql.PreparedStatement psKeywords = conn.prepareStatement(insertKeywordsSql)) {
+
+            // 關閉自動提交，能極大提升批量插入的性能
+            boolean originalAutoCommit = conn.getAutoCommit();
+            conn.setAutoCommit(false);
+
+            // 批量裝載新單詞
+            for (String word : allWords) {
+                psWords.setString(1, word);
+                psWords.addBatch();
+            }
+            psWords.executeBatch();
+
+            // 批量裝載關鍵詞
+            for (String word : allWords) {
                 long bodyCount = bodyWords.getOrDefault(word, 0L);
                 long titleCount = titleWords.getOrDefault(word, 0L);
-                keywordBatch.add(new Object[]{pageId, wordId, bodyCount, titleCount});
+                
+                psKeywords.setInt(1, pageId);
+                psKeywords.setLong(2, bodyCount);
+                psKeywords.setLong(3, titleCount);
+                psKeywords.setString(4, word);
+                psKeywords.addBatch();
             }
-        }
+            psKeywords.executeBatch();
 
-        if (!keywordBatch.isEmpty()) {
-            batchInsertKeywords(keywordBatch);
-        }
-    }
+            // 手動提交事務
+            conn.commit();
+            conn.setAutoCommit(originalAutoCommit);
 
-    private void batchInsertWords(List<String> words) {
-        try {
-            List<Object[]> batch = words.stream()
-                .map(word -> new Object[]{word})
-                .collect(Collectors.toList());
-
-            db.batchUpdate("INSERT OR IGNORE INTO words(word) VALUES (?)", batch);
         } catch (Exception e) {
-            System.err.println("Error batch inserting words: " + e.getMessage());
-        }
-    }
-
-    private Map<String, Integer> batchGetWordIds(List<String> words) {
-        if (words.isEmpty()) return new HashMap<>();
-
-        StringBuilder placeholders = new StringBuilder();
-        for (int i = 0; i < words.size(); i++) {
-            if (i > 0) placeholders.append(",");
-            placeholders.append("?");
-        }
-
-        String sql = "SELECT id, word FROM words WHERE word IN (" + placeholders + ")";
-
-        try {
-            List<Map<String, Object>> results = db.queryForList(sql, words.toArray());
-            Map<String, Integer> wordIds = new HashMap<>();
-            for (Map<String, Object> row : results) {
-                wordIds.put((String) row.get("word"), ((Number) row.get("id")).intValue());
-            }
-            return wordIds;
-        } catch (Exception e) {
-            System.err.println("Error fetching word IDs: " + e.getMessage());
-            return new HashMap<>();
-        }
-    }
-
-    private void batchInsertKeywords(List<Object[]> keywordBatch) {
-        if (keywordBatch.isEmpty()) return;
-
-        try {
-            db.batchUpdate("INSERT OR REPLACE INTO keywords(page_id, word_id, body_count, title_count) VALUES (?, ?, ?, ?)", keywordBatch);
-        } catch (Exception e) {
-            System.err.println("Error batch inserting keywords: " + e.getMessage());
+            System.err.println("Error storing words and keywords: " + e.getMessage());
         }
     }
 
