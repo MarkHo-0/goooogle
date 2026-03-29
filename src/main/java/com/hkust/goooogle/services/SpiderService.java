@@ -15,19 +15,18 @@ import java.nio.charset.StandardCharsets;
 import java.time.ZonedDateTime;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Queue;
-import java.util.Set;
 
 @Service
 public class SpiderService {
     private final JdbcTemplate db;
     private final IndexerService indexerService;
     private final Queue<String> pendingCrawlUrls = new LinkedList<>();
-    private final Set<String> urlCrawlHistory = new HashSet<>();
+    private final List<String> urlCrawlHistory = new ArrayList<>();
     private int remainingCrawlQuota = 0;
 
     private volatile boolean running = false;
@@ -77,6 +76,8 @@ public class SpiderService {
             addChildLinksToPendingQueue(crawledPage.document(), crawledPage.pageId());
 
             indexerService.indexPage(crawledPage.pageId(), crawledPage.url(), crawledPage.document());
+
+            urlCrawlHistory.add(crawledPage.url());
             remainingCrawlQuota--;
         }
 
@@ -180,9 +181,7 @@ public class SpiderService {
             .forEach(url -> {
                 if (!urlCrawlHistory.contains(url)) {
                     pendingCrawlUrls.offer(url);
-                    urlCrawlHistory.add(url);
                 }
-
                 try {
                     db.update(insertPendingLinkSQL, currentPageId, url);
                 } catch (Exception e) {}
