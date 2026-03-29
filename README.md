@@ -17,7 +17,6 @@ Phase 2 focuses on implementing full search and keyword retrieval functionalitie
 2. Clone the repository.
 3. Open the project root directory.
 4. Run the application:
-
 ```bash
 # Windows
 ./mvnw.cmd spring-boot:run
@@ -25,7 +24,6 @@ Phase 2 focuses on implementing full search and keyword retrieval functionalitie
 # macOS / Linux
 ./mvnw spring-boot:run
 ```
-
 5. Open your browser and navigate to `localhost:8080`
 
 ## 3. Completed Features and User Guides
@@ -33,14 +31,13 @@ Phase 2 focuses on implementing full search and keyword retrieval functionalitie
 ### 3.1 Spider
 1. Switch to `Spider` page from the nav bar.
 2. Enter the start URL and max number of pages to crawl.
-4. Click `Start Crawling`.
-5. Completion should be confirmed from logs by showing `Spider completed in x seconds` in the backend console, as dynamic communication is not yet implemented on the frontend.
+3. Click `Start Crawling`.
+4. Completion should be confirmed from logs by showing `Spider completed in x seconds` in the backend console, as dynamic communication is not yet implemented on the frontend.
 
 ### 3.2 Export Indexed Data
 
-1. Click `Export Database to TXT` in the `Spider` page after the completion
- of indexing 
- 2.  `spider_result.txt` will be generated and downloaded automatically.
+1. Click `Export Database to TXT` in the `Spider` page after the completion of indexing 
+2. `spider_result.txt` will be generated and downloaded automatically.
 
 ## 4. Project Architecture
 
