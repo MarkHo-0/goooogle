@@ -96,21 +96,20 @@ public class IndexerService {
         return Stream.of(word);
     }
 
+    private static final String INSERT_WORDS_SQL = "INSERT OR IGNORE INTO words(word) VALUES (?)";
+    private static final String INSERT_KEYWORDS_SQL = "INSERT OR REPLACE INTO keywords(page_id, word_id, body_count, title_count) " +
+                                                      "SELECT ?, id, ?, ? FROM words WHERE word = ?";
     private void storeWordsAndKeywords(int pageId, Map<String, Long> bodyWords, Map<String, Long> titleWords) {
         if (bodyWords.isEmpty() && titleWords.isEmpty()) return;
         Set<String> allWords = new HashSet<>();
         allWords.addAll(bodyWords.keySet());
         allWords.addAll(titleWords.keySet());
 
-        String insertWordsSql = "INSERT OR IGNORE INTO words(word) VALUES (?)";
-        String insertKeywordsSql = "INSERT OR REPLACE INTO keywords(page_id, word_id, body_count, title_count) " +
-                                   "SELECT ?, id, ?, ? FROM words WHERE word = ?";
-
         if (db.getDataSource() == null) return;
 
         try (java.sql.Connection conn = db.getDataSource().getConnection();
-             java.sql.PreparedStatement psWords = conn.prepareStatement(insertWordsSql);
-             java.sql.PreparedStatement psKeywords = conn.prepareStatement(insertKeywordsSql)) {
+             java.sql.PreparedStatement psWords = conn.prepareStatement(INSERT_WORDS_SQL);
+             java.sql.PreparedStatement psKeywords = conn.prepareStatement(INSERT_KEYWORDS_SQL)) {
 
             // 關閉自動提交，能極大提升批量插入的性能
             boolean originalAutoCommit = conn.getAutoCommit();
