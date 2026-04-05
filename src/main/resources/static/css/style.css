@@ -1,0 +1,105 @@
+body {
+    margin: 0;
+    font-family: Arial, sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+nav,
+footer {
+    width: 100%;
+    padding: 1em 0;
+    background: #f0f0f0;
+    text-align: center;
+}
+
+nav a {
+    margin: 0 1em;
+}
+
+main {
+    flex: 1;
+    padding: 2em 0;
+}
+
+.home-search-form {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 40vh;
+}
+
+.search-form,
+.keywords-form {
+    margin-bottom: 2em;
+    text-align: center;
+}
+
+.search-input,
+.keywords-input {
+    width: 300px;
+    padding: 0.5em;
+}
+
+.search-button,
+.keywords-button {
+    margin-left: 1em;
+}
+
+.results-wrapper,
+.keywords-wrapper,
+.spider-export-wrapper {
+    text-align: center;
+}
+
+.result-list,
+.keywords-list {
+    list-style: none;
+    padding: 0;
+}
+
+.result-item,
+.keyword-item {
+    margin: 0.5em 0;
+}
+
+.spider-form {
+    height: 40vh;
+    max-width: 400px;
+    margin: 0 auto;
+    display: flex;
+    justify-content: center;
+    flex-direction: column;
+}
+
+.spider-field {
+    margin-bottom: 1em;
+}
+
+.spider-url-input {
+    width: 100%;
+    padding: 0.5em;
+}
+
+.spider-max-pages-input {
+    width: 80px;
+}
+
+.spider-submit-wrapper {
+    text-align: center;
+}
+
+.spider-export-link {
+    display: inline-block;
+    padding: 0.4em 1em;
+    background-color: gray;
+    color: black;
+    text-decoration: none;
+    border-radius: 2px;
+    cursor: pointer;
+}
+
+.error-section {
+    text-align: center;
+}

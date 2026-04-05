@@ -1,20 +1,20 @@
 <!DOCTYPE html>
-<html xmlns:th="http://www.thymeleaf.org">
+<html xmlns:th="http://www.thymeleaf.org" th:fragment="layout(content)">
 <head>
     <meta charset="UTF-8">
     <title th:text="${pageTitle} ?: 'Goooogle'">Goooogle</title>
     <link rel="stylesheet" th:href="@{/css/style.css}"/>
 </head>
-<body th:fragment="layout(content)">
-    <nav style="width:100%;padding:1em 0;background:#f0f0f0;text-align:center;">
-        <a th:href="@{/home}" style="margin:0 1em;">Search</a>
-        <a th:href="@{/spider}" style="margin:0 1em;">Spider</a>
-        <a th:href="@{/keywords}" style="margin:0 1em;">Keywords</a>
+<body>
+    <nav>
+        <a th:href="@{/home}">Search</a>
+        <a th:href="@{/spider}">Spider</a>
+        <a th:href="@{/keywords}">Keywords</a>
     </nav>
-    <main style="min-height:60vh;padding:2em 0;">
+    <main>
         <div th:replace="${content}"></div>
     </main>
-    <footer style="width:100%;padding:1em 0;background:#f0f0f0;text-align:center;">
+    <footer>
         &copy; This is Goooogle, not that Google.
     </footer>
 </body>

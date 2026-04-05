@@ -1,22 +1,20 @@
 <!DOCTYPE html>
-<html xmlns:th="http://www.thymeleaf.org">
-<body th:replace="~{layout :: layout(~{::section})}">
+<html xmlns:th="http://www.thymeleaf.org" th:replace="~{layout :: layout(~{::section})}">
 <section>
-    <form th:action="@{/spider}" method="post" style="height:40vh;max-width:400px;margin:0 auto;display:flex;justify-content: center;flex-direction: column;">
-        <div style="margin-bottom:1em;">
-            <input type="text" name="url" placeholder="Enter URL to index" style="width:100%;padding:0.5em;"/>
+    <form th:action="@{/spider}" method="post" class="spider-form">
+        <div class="spider-field">
+            <input type="text" name="url" placeholder="Enter URL to index" class="spider-url-input"/>
         </div>
-        <div style="margin-bottom:1em;">
-            <label>Max pages to crawl: <input type="number" name="maxPages" min="1" value="30" style="width:80px;"/></label>
+        <div class="spider-field">
+            <label>Max pages to crawl: <input type="number" name="maxPages" min="1" value="30" class="spider-max-pages-input"/></label>
         </div>
-        <div style="text-align:center;">
+        <div class="spider-submit-wrapper">
             <button type="submit">Start Crawling</button>
         </div>
     </form>
 
-    <div style="text-align:center;">
-        <a href="/spider/export" style="display:inline-block;padding:0.4em 1em;background-color:gray;color: black;text-decoration:none;border-radius:2px;cursor:pointer;">Export Database to TXT</a>
+    <div class="spider-export-wrapper">
+        <a href="/spider/export" class="spider-export-link">Export Database to TXT</a>
     </div>
 </section>
-</body>
 </html>

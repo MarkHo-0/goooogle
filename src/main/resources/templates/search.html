@@ -1,19 +1,17 @@
 <!DOCTYPE html>
-<html xmlns:th="http://www.thymeleaf.org">
-<body th:replace="~{layout :: layout(~{::section})}">
+<html xmlns:th="http://www.thymeleaf.org" th:replace="~{layout :: layout(~{::section})}">
 <section>
-    <form th:action="@{/search}" method="get" style="margin-bottom:2em;text-align:center;">
-        <input type="text" name="q" th:value="${param.q}" placeholder="Search..." style="width:300px;padding:0.5em;"/>
-        <button type="submit" style="margin-left:1em;">Search</button>
+    <form th:action="@{/search}" method="get" class="search-form">
+        <input type="text" name="q" th:value="${param.q}" placeholder="Search..." class="search-input"/>
+        <button type="submit" class="search-button">Search</button>
     </form>
-    <div style="text-align:center;">
+    <div class="results-wrapper">
         <div th:if="${results != null}">
             <div th:if="${#lists.isEmpty(results)}">No results found.</div>
-            <ul th:if="${!#lists.isEmpty(results)}" style="list-style:none;padding:0;">
-                <li th:each="result : ${results}" th:text="${result}" style="margin:0.5em 0;"></li>
+            <ul th:if="${!#lists.isEmpty(results)}" class="result-list">
+                <li th:each="result : ${results}" th:text="${result}" class="result-item"></li>
             </ul>
         </div>
     </div>
 </section>
-</body>
 </html>
