@@ -9,7 +9,23 @@
         <div th:if="${results != null}">
             <div th:if="${#lists.isEmpty(results)}">No results found.</div>
             <ul th:if="${!#lists.isEmpty(results)}" class="result-list">
-                <li th:each="result : ${results}" th:text="${result}" class="result-item"></li>
+                <li th:each="result, iterStat : ${results}" class="result-item">
+                    <div class="result-rank" th:text="'#' + ${iterStat.count}"></div>
+                    <div class="result-content">
+                        <h3 class="result-title">
+                            <a th:href="${result.url}" target="_blank" th:text="${result.title}"></a>
+                        </h3>
+                        <p class="result-url" th:text="${result.url}"></p>
+                        <p class="result-meta">
+                            <span th:text="'Modified: ' + ${result.lastModifyTime}"></span>
+                            <span th:text="' | Size: ' + ${result.contentSize} + ' bytes'"></span>
+                        </p>
+                        <p class="result-keywords" th:if="${!result.keywordsWithCounts.isEmpty()}">
+                            <span th:each="entry : ${result.keywordsWithCounts.entrySet()}" 
+                                th:text="${entry.key} + ' (' + ${entry.value} + ') '"></span>
+                        </p>
+                    </div>
+                </li>
             </ul>
         </div>
     </div>

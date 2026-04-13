@@ -41,7 +41,7 @@ public class PageController {
     public String search(@RequestParam(value = "q", required = false) String q, Model model) {
         model.addAttribute("pageTitle", "Search");
         if (q != null && !q.isEmpty()) {
-            List<Page> results = searchService.search(q, 20);
+            List<Page> results = searchService.search(q, 10);
             model.addAttribute("results", results);
         }
         return "search";
