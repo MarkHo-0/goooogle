@@ -50,6 +50,7 @@ public class DatabaseSchemaInitializer implements CommandLineRunner {
                 word_id INTEGER NOT NULL,
                 body_count TINYINT NOT NULL DEFAULT 0,
                 title_count TINYINT NOT NULL DEFAULT 0,
+                weighted_count FLOAT NOT NULL DEFAULT 0,
                 PRIMARY KEY (page_id, word_id),
                 FOREIGN KEY (page_id) REFERENCES pages(id) ON DELETE CASCADE,
                 FOREIGN KEY (word_id) REFERENCES words(id) ON DELETE CASCADE
