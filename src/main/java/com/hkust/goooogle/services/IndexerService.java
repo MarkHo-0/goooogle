@@ -125,7 +125,7 @@ public class IndexerService {
             psWords.executeBatch();
 
             // 批量裝載關鍵詞
-            float beta = 1.0f;
+            float beta = 10.0f;
             float wt = (beta * titleWordsLength) / (beta * titleWordsLength + bodyWordsLength);
             float invWt = 1.0f - wt;
             
