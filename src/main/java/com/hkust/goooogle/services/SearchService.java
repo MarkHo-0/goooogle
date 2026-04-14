@@ -16,11 +16,13 @@ public class SearchService {
     
     private final Porter stemmer = new Porter();
     
+    // Simple working version for your record
     public List<Page> search(String query, int limit) {
         if (query == null || query.isBlank()) {
             return Collections.emptyList();
         }
         
+        // Process query - stem each word
         String[] keywords = query.toLowerCase().split("\\s+");
         Set<String> stemmedKeywords = new HashSet<>();
         for (String keyword : keywords) {
@@ -37,6 +39,7 @@ public class SearchService {
             return Collections.emptyList();
         }
         
+        // Build SQL query
         StringBuilder sql = new StringBuilder(
             "SELECT DISTINCT p.id, p.url, p.title, p.last_modify_time, p.content_size " +
             "FROM pages p " +
@@ -55,9 +58,9 @@ public class SearchService {
         sql.append(" LIMIT ?");
         params.add(limit);
         
+        // Query and map to Page records
         return db.query(sql.toString(), 
             (rs, rowNum) -> {
-                // Create Page record with empty maps/lists since we don't have keyword counts here
                 return new Page(
                     rs.getString("url"),
                     rs.getString("title"),
