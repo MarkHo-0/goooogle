@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 
 import java.util.List;
+import java.util.Map;
 
 @Controller
 public class PageController {
@@ -38,11 +39,21 @@ public class PageController {
     }
 
     @GetMapping("/search")
-    public String search(@RequestParam(value = "q", required = false) String q, Model model) {
+    public String search(@RequestParam(value = "q", required = false) String q, @RequestParam(value = "exact", required = false) String exact, Model model) {
         model.addAttribute("pageTitle", "Search");
+        boolean isExactMatch = exact != null && exact.equals("true");
+        
         if (q != null && !q.isEmpty()) {
-            List<Page> results = searchService.search(q, 10);
-            model.addAttribute("results", results);
+            Map<Integer, Integer> ranking = searchService.search(q, 10);
+            
+            Map<Integer, Integer> finalRanking;
+            if (isExactMatch) {
+                finalRanking = searchService.excludeNonExactMatch(ranking, q);
+            } else {
+                finalRanking = ranking;
+            }
+
+            model.addAttribute("results", finalRanking);
         }
         return "search";
     }

@@ -2,8 +2,16 @@
 <html xmlns:th="http://www.thymeleaf.org" th:replace="~{layout :: layout(~{::section})}">
 <section>
     <form th:action="@{/search}" method="get" class="home-search-form">
-        <input type="text" name="q" placeholder="Search..." class="search-input"/>
-        <button type="submit" class="search-button">Search</button>
+        <div class="search-input-group">
+            <input type="text" name="q" placeholder="Search..." class="search-input"/>
+            <button type="submit" class="search-button">Search</button>
+        </div>
+        <div class="search-options">
+            <label>
+                <input type="checkbox" name="exact" value="true" th:checked="true"/>
+                Exact match
+            </label>
+        </div>
     </form>
 </section>
 </html>

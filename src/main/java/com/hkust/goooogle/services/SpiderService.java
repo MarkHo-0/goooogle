@@ -137,11 +137,13 @@ public class SpiderService {
         }
     }
 
-    private static final String insertPageSQL = "INSERT INTO pages(url, title, last_modify_time, content_size) VALUES (?, ?, ?, ?)";
+    private static final String insertPageSQL = "INSERT INTO pages(url, title, last_modify_time, content_size, full_page) VALUES (?, ?, ?, ?, ?)";
     private int insertPage(String url, Document document) {
         String lastModifyTime = extractLastModifyTime(document);
         int contentSize = extractContentSize(document);
         String title = document.title();
+        String bodyText = document.body().text();
+        String fullPage = title + " " + bodyText;
 
         KeyHolder keyHolder = new GeneratedKeyHolder();
         int rows = db.update(connection -> {
@@ -150,6 +152,7 @@ public class SpiderService {
             statement.setString(2, title);
             statement.setString(3, lastModifyTime);
             statement.setInt(4, contentSize);
+            statement.setString(5, fullPage);
             return statement;
         }, keyHolder);
 
