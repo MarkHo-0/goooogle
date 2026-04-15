@@ -41,7 +41,8 @@ public class PageController {
     @GetMapping("/search")
     public String search(@RequestParam(value = "q", required = false) String q, @RequestParam(value = "exact", required = false) String exact, Model model) {
         model.addAttribute("pageTitle", "Search");
-        boolean isExactMatch = exact != null && exact.equals("true");
+        boolean isExactMatch = !"false".equals(exact);
+        model.addAttribute("exactMatch", isExactMatch ? "true" : "false");
         
         if (q != null && !q.isEmpty()) {
             Map<Integer, Integer> ranking = searchService.search(q, 10);

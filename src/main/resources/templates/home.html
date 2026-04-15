@@ -8,7 +8,9 @@
         </div>
         <div class="search-options">
             <label>
-                <input type="checkbox" name="exact" value="true" th:checked="true"/>
+                <input type="hidden" id="exactHidden" name="exact" value="true"/>
+                <input type="checkbox" id="exactCheckbox" checked
+                       onclick="document.getElementById('exactHidden').value = this.checked ? 'true' : 'false'"/>
                 Exact match
             </label>
         </div>
