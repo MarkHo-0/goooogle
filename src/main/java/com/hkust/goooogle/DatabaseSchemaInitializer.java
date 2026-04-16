@@ -23,7 +23,7 @@ public class DatabaseSchemaInitializer implements CommandLineRunner {
                 url TEXT NOT NULL UNIQUE,
                 title TEXT,
                 last_modify_time TEXT,
-                content_size INTEGER
+                content_size INTEGER,
                 full_page TEXT
             )
             """);
