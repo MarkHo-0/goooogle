@@ -16,7 +16,6 @@ public class SearchService {
     
     private final Porter stemmer = new Porter();
     
-    // Simple working version for your record
     public Map<Integer, Integer> search(String query, int limit) {
         if (query == null || query.isBlank()) {
             return Collections.emptyMap();
@@ -41,7 +40,7 @@ public class SearchService {
         
         // Build SQL query
         StringBuilder sql = new StringBuilder(
-            "SELECT DISTINCT p.id, p.url, p.title, p.last_modify_time, p.content_size " +
+            "SELECT DISTINCT p.id " +
             "FROM pages p " +
             "JOIN keywords k ON p.id = k.page_id " +
             "JOIN words w ON k.word_id = w.id WHERE "
@@ -58,7 +57,6 @@ public class SearchService {
         sql.append(" LIMIT ?");
         params.add(limit);
         
-        // Query and map to Map<Integer, Integer> with page ID and score
         Map<Integer, Integer> results = new LinkedHashMap<>();
         int score = limit;
         
@@ -121,90 +119,90 @@ public class SearchService {
         }
 
         List<Integer> pageIds = new ArrayList<>(ranking.keySet());
+        int n = pageIds.size();
+        Object[] idsArray = pageIds.toArray();
+        String ph = String.join(",", Collections.nCopies(n, "?"));
 
         // 1. Fetch page metadata
-        StringBuilder metaSql = new StringBuilder(
-            "SELECT id, url, title, last_modify_time, content_size FROM pages WHERE id IN ("
-        );
-        for (int i = 0; i < pageIds.size(); i++) {
-            if (i > 0) metaSql.append(",");
-            metaSql.append("?");
-        }
-        metaSql.append(")");
+        Map<Integer, String[]> metaMap = new HashMap<>();
+        db.query(
+            "SELECT id, url, title, last_modify_time, content_size FROM pages WHERE id IN (" + ph + ")",
+            (rs) -> {
+                metaMap.put(rs.getInt("id"), new String[]{
+                    rs.getString("url"),
+                    rs.getString("title"),
+                    rs.getString("last_modify_time"),
+                    rs.getString("content_size")
+                });
+            }, idsArray);
 
-        Map<Integer, String[]> metaMap = new HashMap<>(); // id -> [url, title, lastModify, contentSize]
-        db.query(metaSql.toString(), (rs) -> {
-            metaMap.put(rs.getInt("id"), new String[]{
-                rs.getString("url"),
-                rs.getString("title"),
-                rs.getString("last_modify_time"),
-                rs.getString("content_size")
-            });
-        }, pageIds.toArray());
-
-        // 2. Fetch top 5 keywords per page using ROW_NUMBER window function
-        StringBuilder kwSql = new StringBuilder(
+        // 2. Top 5 keywords per page via ROW_NUMBER window function
+        Map<Integer, Map<String, Integer>> keywordsMap = new HashMap<>();
+        db.query(
             "SELECT page_id, word, weighted_count FROM (" +
             "SELECT k.page_id, w.word, k.weighted_count, " +
             "ROW_NUMBER() OVER (PARTITION BY k.page_id ORDER BY k.weighted_count DESC) AS rn " +
-            "FROM keywords k JOIN words w ON k.word_id = w.id WHERE k.page_id IN ("
-        );
-        for (int i = 0; i < pageIds.size(); i++) {
-            if (i > 0) kwSql.append(",");
-            kwSql.append("?");
-        }
-        kwSql.append(")) WHERE rn <= 5");
+            "FROM keywords k JOIN words w ON k.word_id = w.id WHERE k.page_id IN (" + ph + ")" +
+            ") WHERE rn <= 5",
+            (rs) -> {
+                keywordsMap
+                    .computeIfAbsent(rs.getInt("page_id"), k -> new LinkedHashMap<>())
+                    .put(rs.getString("word"), (int) rs.getFloat("weighted_count"));
+            }, idsArray);
 
-        Map<Integer, Map<String, Integer>> keywordsMap = new HashMap<>();
-        db.query(kwSql.toString(), (rs) -> {
-            int pid = rs.getInt("page_id");
-            keywordsMap.computeIfAbsent(pid, k -> new LinkedHashMap<>())
-                .put(rs.getString("word"), (int) rs.getFloat("weighted_count"));
-        }, pageIds.toArray());
+        // Build doubled params array (used for both UNION branches)
+        Object[] doubleIds = new Object[n * 2];
+        System.arraycopy(idsArray, 0, doubleIds, 0, n);
+        System.arraycopy(idsArray, 0, doubleIds, n, n);
 
-        // 3. Fetch up to 5 child pages per page (pages linked FROM this page)
-        StringBuilder childSql = new StringBuilder(
-            "SELECT l.parent_page_id, p.url FROM links l JOIN pages p ON l.child_page_id = p.id " +
-            "WHERE l.parent_page_id IN ("
-        );
-        for (int i = 0; i < pageIds.size(); i++) {
-            if (i > 0) childSql.append(",");
-            childSql.append("?");
-        }
-        childSql.append(")");
-
+        // 3. Child pages: indexed (links → pages) UNION ALL pending (pending_links)
+        //    Indexed rows come first so they fill slots before pending ones.
         Map<Integer, List<Page>> childMap = new HashMap<>();
-        db.query(childSql.toString(), (rs) -> {
-            int pid = rs.getInt("parent_page_id");
-            List<Page> list = childMap.computeIfAbsent(pid, k -> new ArrayList<>());
-            if (list.size() < 5) {
-                list.add(new Page(rs.getString("url"), null, null, 0,
-                    Collections.emptyMap(), Collections.emptyList(), Collections.emptyList(), 0));
-            }
-        }, pageIds.toArray());
+        db.query(
+            "SELECT pid, url, is_pending FROM (" +
+            "SELECT l.parent_page_id AS pid, p.url AS url, 0 AS is_pending " +
+            "  FROM links l JOIN pages p ON l.child_page_id = p.id WHERE l.parent_page_id IN (" + ph + ") " +
+            "UNION ALL " +
+            "SELECT page_id AS pid, outbound_link AS url, 1 AS is_pending " +
+            "  FROM pending_links WHERE page_id IN (" + ph + ")" +
+            ")",
+            (rs) -> {
+                int pid = rs.getInt("pid");
+                List<Page> list = childMap.computeIfAbsent(pid, k -> new ArrayList<>());
+                if (list.size() < 5) {
+                    String title = rs.getInt("is_pending") == 1 ? "Page not indexed yet" : null;
+                    list.add(new Page(rs.getString("url"), title, null, 0,
+                        Collections.emptyMap(), Collections.emptyList(), Collections.emptyList(), 0));
+                }
+            }, doubleIds);
 
-        // 4. Fetch up to 5 parent pages per page (pages that link TO this page)
-        StringBuilder parentSql = new StringBuilder(
-            "SELECT l.child_page_id, p.url FROM links l JOIN pages p ON l.parent_page_id = p.id " +
-            "WHERE l.child_page_id IN ("
-        );
-        for (int i = 0; i < pageIds.size(); i++) {
-            if (i > 0) parentSql.append(",");
-            parentSql.append("?");
-        }
-        parentSql.append(")");
-
+        // 4. Parent pages: indexed (links → pages) UNION ALL pending
+        //    For pending parents: join pages twice — once to get the parent URL (pl.page_id → pages),
+        //    once to resolve the target result page ID (pl.outbound_link = pages.url → pages.id).
+        //    This avoids needing a urlToId map in Java.
         Map<Integer, List<Page>> parentMap = new HashMap<>();
-        db.query(parentSql.toString(), (rs) -> {
-            int pid = rs.getInt("child_page_id");
-            List<Page> list = parentMap.computeIfAbsent(pid, k -> new ArrayList<>());
-            if (list.size() < 5) {
-                list.add(new Page(rs.getString("url"), null, null, 0,
-                    Collections.emptyMap(), Collections.emptyList(), Collections.emptyList(), 0));
-            }
-        }, pageIds.toArray());
+        db.query(
+            "SELECT pid, url, is_pending FROM (" +
+            "SELECT l.child_page_id AS pid, p.url AS url, 0 AS is_pending " +
+            "  FROM links l JOIN pages p ON l.parent_page_id = p.id WHERE l.child_page_id IN (" + ph + ") " +
+            "UNION ALL " +
+            "SELECT p2.id AS pid, p.url AS url, 1 AS is_pending " +
+            "  FROM pending_links pl " +
+            "  JOIN pages p  ON pl.page_id      = p.id " +
+            "  JOIN pages p2 ON pl.outbound_link = p2.url " +
+            "  WHERE p2.id IN (" + ph + ")" +
+            ")",
+            (rs) -> {
+                int pid = rs.getInt("pid");
+                List<Page> list = parentMap.computeIfAbsent(pid, k -> new ArrayList<>());
+                if (list.size() < 5) {
+                    String title = rs.getInt("is_pending") == 1 ? "Page not indexed yet" : null;
+                    list.add(new Page(rs.getString("url"), title, null, 0,
+                        Collections.emptyMap(), Collections.emptyList(), Collections.emptyList(), 0));
+                }
+            }, doubleIds);
 
-        // 5. Assemble results in ranking order
+        // 5. Assemble in ranking order
         List<Page> pages = new ArrayList<>();
         for (Integer pageId : pageIds) {
             String[] meta = metaMap.get(pageId);
