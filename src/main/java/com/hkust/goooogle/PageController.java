@@ -1,6 +1,7 @@
 package com.hkust.goooogle;
 
 import com.hkust.goooogle.models.ExportedPage;
+import com.hkust.goooogle.models.Page;
 import com.hkust.goooogle.services.KeywordService;
 import com.hkust.goooogle.services.SearchService;
 import com.hkust.goooogle.services.SpiderService;
@@ -37,34 +38,35 @@ public class PageController {
         return "home";
     }
 
-    @GetMapping("/search")
-    public String search(@RequestParam(value = "q", required = false) String q, @RequestParam(value = "exact", required = false) String exact, Model model) {
-        model.addAttribute("pageTitle", "Search");
-        boolean isExactMatch = !"false".equals(exact);
-        model.addAttribute("exactMatch", isExactMatch ? "true" : "false");
+@GetMapping("/search")
+public String search(@RequestParam(value = "q", required = false) String q, 
+                     @RequestParam(value = "exact", required = false) String exact, 
+                     Model model) {
+    model.addAttribute("pageTitle", "Search");
+    boolean isExactMatch = !"false".equals(exact);
+    model.addAttribute("exactMatch", isExactMatch ? "true" : "false");
 
-        //Map <int pid, int score>
-        if (q != null && !q.isEmpty()) {
-            long startTime = System.currentTimeMillis();
+    if (q != null && !q.isEmpty()) {
+        long startTime = System.currentTimeMillis();
 
-            Map<Integer, Integer> ranking = searchService.search(q, 10);
-            
-            Map<Integer, Integer> finalRanking;
-            if (isExactMatch) {
-                finalRanking = searchService.excludeNonExactMatch(ranking, q);
-            } else {
-                finalRanking = ranking;
-            }
-
-            List<com.hkust.goooogle.models.Page> pages = searchService.getPages(finalRanking);
-            long elapsedMs = System.currentTimeMillis() - startTime;
-
-            model.addAttribute("results", pages);
-            model.addAttribute("resultCount", pages.size());
-            model.addAttribute("searchTimeMs", elapsedMs);
+        Map<Integer, Double> ranking = searchService.search(q, 10);
+        
+        Map<Integer, Double> finalRanking;
+        if (isExactMatch) {
+            finalRanking = searchService.excludeNonExactMatch(ranking, q);
+        } else {
+            finalRanking = ranking;
         }
-        return "search";
+
+        List<Page> pages = searchService.getPages(finalRanking);
+        long elapsedMs = System.currentTimeMillis() - startTime;
+
+        model.addAttribute("results", pages);
+        model.addAttribute("resultCount", pages.size());
+        model.addAttribute("searchTimeMs", elapsedMs);
     }
+    return "search";
+}
 
     @GetMapping("/spider")
     public String spider(Model model) {
