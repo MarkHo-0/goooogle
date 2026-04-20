@@ -78,38 +78,40 @@ public class SearchService {
         if (ranking.isEmpty()) {
             return new LinkedHashMap<>();
         }
-        
-        Map<Integer, Integer> exactMatches = new LinkedHashMap<>();
-        String queryLowercase = query.toLowerCase();
-        
-        // Batch query all pages at once instead of individual queries
+
         List<Integer> pageIds = new ArrayList<>(ranking.keySet());
-        
-        // Build IN clause with placeholders
-        StringBuilder sql = new StringBuilder("SELECT id, full_page FROM pages WHERE id IN (");
+
+        // Escape LIKE special characters so the phrase is matched literally
+        String escapedQuery = query.toLowerCase()
+            .replace("\\", "\\\\")
+            .replace("%", "\\%")
+            .replace("_", "\\_");
+        String likePattern = "%" + escapedQuery + "%";
+
+        // Push filtering into SQL: only fetch IDs of matching pages,
+        // avoiding transferring large full_page text blobs to Java.
+        StringBuilder sql = new StringBuilder("SELECT id FROM pages WHERE id IN (");
         for (int i = 0; i < pageIds.size(); i++) {
             if (i > 0) sql.append(",");
             sql.append("?");
         }
-        sql.append(")");
-        
-        // Execute batch query
-        Map<Integer, String> pageFullTexts = new HashMap<>();
-        db.query(sql.toString(), 
-            (rs) -> {
-                pageFullTexts.put(rs.getInt("id"), rs.getString("full_page"));
-            },
-            pageIds.toArray()
-        );
-        
-        // Filter based on exact match in full_page
-        for (Integer pageId : ranking.keySet()) {
-            String fullPage = pageFullTexts.get(pageId);
-            if (fullPage != null && fullPage.toLowerCase().contains(queryLowercase)) {
+        sql.append(") AND LOWER(full_page) LIKE ? ESCAPE '\\'");
+
+        List<Object> params = new ArrayList<>(pageIds);
+        params.add(likePattern);
+
+        Set<Integer> matchingIds = new HashSet<>(db.query(sql.toString(),
+            (rs, rowNum) -> rs.getInt("id"),
+            params.toArray()
+        ));
+
+        Map<Integer, Integer> exactMatches = new LinkedHashMap<>();
+        for (Integer pageId : pageIds) {
+            if (matchingIds.contains(pageId)) {
                 exactMatches.put(pageId, ranking.get(pageId));
             }
         }
-        
+
         return exactMatches;
     }
 }
