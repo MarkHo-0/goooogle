@@ -43,7 +43,8 @@ public class PageController {
         model.addAttribute("pageTitle", "Search");
         boolean isExactMatch = !"false".equals(exact);
         model.addAttribute("exactMatch", isExactMatch ? "true" : "false");
-        
+
+        //Map <int pid, int score>
         if (q != null && !q.isEmpty()) {
             Map<Integer, Integer> ranking = searchService.search(q, 10);
             
