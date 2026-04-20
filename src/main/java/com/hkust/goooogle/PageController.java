@@ -1,7 +1,6 @@
 package com.hkust.goooogle;
 
 import com.hkust.goooogle.models.ExportedPage;
-import com.hkust.goooogle.models.Page;
 import com.hkust.goooogle.services.KeywordService;
 import com.hkust.goooogle.services.SearchService;
 import com.hkust.goooogle.services.SpiderService;
@@ -55,7 +54,7 @@ public class PageController {
                 finalRanking = ranking;
             }
 
-            model.addAttribute("results", finalRanking);
+            model.addAttribute("results", searchService.getPages(finalRanking));
         }
         return "search";
     }

@@ -3,7 +3,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-public record Page(String url, String title, String lastModifyTime, int contentSize, Map<String, Integer> keywordsWithCounts, List<Page> childPages, List<Page> parentPages) {
+public record Page(String url, String title, String lastModifyTime, int contentSize, Map<String, Integer> keywordsWithCounts, List<Page> childPages, List<Page> parentPages, int score) {
 
     public String toMultiLineString(boolean showKeywords, boolean showLinkedPages) {
         StringBuilder sb = new StringBuilder();

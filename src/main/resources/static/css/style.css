@@ -64,6 +64,76 @@ main {
     margin: 0.5em 0;
 }
 
+/* Two-column result card */
+.result-card {
+    display: flex;
+    gap: 2em;
+    align-items: flex-start;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    padding: 1em 1.2em;
+    background: #fafafa;
+    text-align: left;
+}
+
+.result-left {
+    flex: 1 1 0;
+    min-width: 0;
+}
+
+.result-right {
+    flex: 0 0 200px;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5em;
+    padding-left: 1em;
+    border-left: 1px solid #e0e0e0;
+    font-size: 0.9em;
+    color: #444;
+}
+
+.result-meta-item {
+    display: flex;
+    flex-direction: column;
+}
+
+.result-meta-label {
+    font-weight: bold;
+    font-size: 0.8em;
+    text-transform: uppercase;
+    color: #888;
+    margin-bottom: 0.1em;
+}
+
+.result-links {
+    margin-top: 0.5em;
+    font-size: 0.9em;
+}
+
+.result-links summary {
+    cursor: pointer;
+    color: #555;
+    user-select: none;
+}
+
+.result-links ul {
+    margin: 0.3em 0 0 1em;
+    padding: 0;
+    list-style: disc;
+}
+
+.result-links li {
+    margin: 0.2em 0;
+    word-break: break-all;
+}
+
+.result-rank {
+    font-size: 0.85em;
+    color: #999;
+    margin-bottom: 0.3em;
+    text-align: left;
+}
+
 .spider-form {
     height: 40vh;
     max-width: 400px;

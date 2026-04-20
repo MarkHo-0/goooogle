@@ -21,19 +21,57 @@
             <ul th:if="${!#lists.isEmpty(results)}" class="result-list">
                 <li th:each="result, iterStat : ${results}" class="result-item">
                     <div class="result-rank" th:text="'#' + ${iterStat.count}"></div>
-                    <div class="result-content">
-                        <h3 class="result-title">
-                            <a th:href="${result.url}" target="_blank" th:text="${result.title}"></a>
-                        </h3>
-                        <p class="result-url" th:text="${result.url}"></p>
-                        <p class="result-meta">
-                            <span th:text="'Modified: ' + ${result.lastModifyTime}"></span>
-                            <span th:text="' | Size: ' + ${result.contentSize} + ' bytes'"></span>
-                        </p>
-                        <p class="result-keywords" th:if="${!result.keywordsWithCounts.isEmpty()}">
-                            <span th:each="entry : ${result.keywordsWithCounts.entrySet()}" 
-                                th:text="${entry.key} + ' (' + ${entry.value} + ') '"></span>
-                        </p>
+                    <div class="result-card">
+
+                        <!-- Left column -->
+                        <div class="result-left">
+                            <h3 class="result-title">
+                                <a th:href="${result.url}" target="_blank" th:text="${result.title}"></a>
+                            </h3>
+                            <p class="result-url" th:text="${result.url}"></p>
+
+                            <p class="result-keywords" th:if="${!result.keywordsWithCounts.isEmpty()}">
+                                <strong>Keywords: </strong>
+                                <span th:each="entry, kStat : ${result.keywordsWithCounts}">
+                                    <span th:text="${entry.key} + ' (' + ${entry.value} + ')'"></span><span th:if="${!kStat.last}">, </span>
+                                </span>
+                            </p>
+
+                            <details class="result-links" th:if="${!result.parentPages.isEmpty()}">
+                                <summary th:text="'Parent pages (' + ${#lists.size(result.parentPages)} + ')'"></summary>
+                                <ul>
+                                    <li th:each="parent : ${result.parentPages}">
+                                        <a th:href="${parent.url}" target="_blank" th:text="${parent.url}"></a>
+                                    </li>
+                                </ul>
+                            </details>
+
+                            <details class="result-links" th:if="${!result.childPages.isEmpty()}">
+                                <summary th:text="'Child pages (' + ${#lists.size(result.childPages)} + ')'"></summary>
+                                <ul>
+                                    <li th:each="child : ${result.childPages}">
+                                        <a th:href="${child.url}" target="_blank" th:text="${child.url}"></a>
+                                    </li>
+                                </ul>
+                            </details>
+                        </div>
+
+                        <!-- Right column -->
+                        <div class="result-right">
+                            <div class="result-meta-item">
+                                <span class="result-meta-label">Last modified</span>
+                                <span th:text="${result.lastModifyTime}"></span>
+                            </div>
+                            <div class="result-meta-item">
+                                <span class="result-meta-label">Page size</span>
+                                <span th:text="${result.contentSize} + ' bytes'"></span>
+                            </div>
+                            <div class="result-meta-item">
+                                <span class="result-meta-label">Score</span>
+                                <span th:text="${result.score}"></span>
+                            </div>
+                        </div>
+
                     </div>
                 </li>
             </ul>
