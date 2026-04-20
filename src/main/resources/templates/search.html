@@ -44,7 +44,10 @@
                                 <summary th:text="'Parent pages (' + ${#lists.size(result.parentPages)} + ')'"></summary>
                                 <ul>
                                     <li th:each="parent : ${result.parentPages}">
-                                        <a th:href="${parent.url}" target="_blank" th:text="${parent.url}"></a>
+                                        <a th:href="${parent.url}" target="_blank"
+                                           th:text="${parent.title} ?: ${parent.url}"></a>
+                                        <span class="linked-page-url" th:if="${parent.title != null}"
+                                              th:text="${parent.url}"></span>
                                     </li>
                                 </ul>
                             </details>
@@ -53,7 +56,10 @@
                                 <summary th:text="'Child pages (' + ${#lists.size(result.childPages)} + ')'"></summary>
                                 <ul>
                                     <li th:each="child : ${result.childPages}">
-                                        <a th:href="${child.url}" target="_blank" th:text="${child.url}"></a>
+                                        <a th:href="${child.url}" target="_blank"
+                                           th:text="${child.title} ?: ${child.url}"></a>
+                                        <span class="linked-page-url" th:if="${child.title != null}"
+                                              th:text="${child.url}"></span>
                                     </li>
                                 </ul>
                             </details>

@@ -136,6 +136,13 @@ main {
     word-break: break-all;
 }
 
+.linked-page-url {
+    display: block;
+    font-size: 0.85em;
+    color: #888;
+    word-break: break-all;
+}
+
 .result-rank {
     font-size: 0.85em;
     color: #999;

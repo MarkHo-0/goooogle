@@ -159,18 +159,18 @@ public class SearchService {
         //    Indexed rows come first so they fill slots before pending ones.
         Map<Integer, List<Page>> childMap = new HashMap<>();
         db.query(
-            "SELECT pid, url, is_pending FROM (" +
-            "SELECT l.parent_page_id AS pid, p.url AS url, 0 AS is_pending " +
+            "SELECT pid, url, title, is_pending FROM (" +
+            "SELECT l.parent_page_id AS pid, p.url AS url, p.title AS title, 0 AS is_pending " +
             "  FROM links l JOIN pages p ON l.child_page_id = p.id WHERE l.parent_page_id IN (" + ph + ") " +
             "UNION ALL " +
-            "SELECT page_id AS pid, outbound_link AS url, 1 AS is_pending " +
+            "SELECT page_id AS pid, outbound_link AS url, NULL AS title, 1 AS is_pending " +
             "  FROM pending_links WHERE page_id IN (" + ph + ")" +
             ")",
             (rs) -> {
                 int pid = rs.getInt("pid");
                 List<Page> list = childMap.computeIfAbsent(pid, k -> new ArrayList<>());
                 if (list.size() < 5) {
-                    String title = rs.getInt("is_pending") == 1 ? "Page not indexed yet" : null;
+                    String title = rs.getInt("is_pending") == 1 ? "Page not indexed yet" : rs.getString("title");
                     list.add(new Page(rs.getString("url"), title, null, 0,
                         Collections.emptyMap(), Collections.emptyList(), Collections.emptyList(), 0));
                 }
@@ -182,11 +182,11 @@ public class SearchService {
         //    This avoids needing a urlToId map in Java.
         Map<Integer, List<Page>> parentMap = new HashMap<>();
         db.query(
-            "SELECT pid, url, is_pending FROM (" +
-            "SELECT l.child_page_id AS pid, p.url AS url, 0 AS is_pending " +
+            "SELECT pid, url, title, is_pending FROM (" +
+            "SELECT l.child_page_id AS pid, p.url AS url, p.title AS title, 0 AS is_pending " +
             "  FROM links l JOIN pages p ON l.parent_page_id = p.id WHERE l.child_page_id IN (" + ph + ") " +
             "UNION ALL " +
-            "SELECT p2.id AS pid, p.url AS url, 1 AS is_pending " +
+            "SELECT p2.id AS pid, p.url AS url, NULL AS title, 1 AS is_pending " +
             "  FROM pending_links pl " +
             "  JOIN pages p  ON pl.page_id      = p.id " +
             "  JOIN pages p2 ON pl.outbound_link = p2.url " +
@@ -196,7 +196,7 @@ public class SearchService {
                 int pid = rs.getInt("pid");
                 List<Page> list = parentMap.computeIfAbsent(pid, k -> new ArrayList<>());
                 if (list.size() < 5) {
-                    String title = rs.getInt("is_pending") == 1 ? "Page not indexed yet" : null;
+                    String title = rs.getInt("is_pending") == 1 ? "Page not indexed yet" : rs.getString("title");
                     list.add(new Page(rs.getString("url"), title, null, 0,
                         Collections.emptyMap(), Collections.emptyList(), Collections.emptyList(), 0));
                 }
