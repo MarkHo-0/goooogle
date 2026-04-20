@@ -64,6 +64,15 @@ main {
     margin: 0.5em 0;
 }
 
+.search-stats {
+    text-align: left;
+    color: #70757a;
+    font-size: 0.9em;
+    margin: 0 auto 0.8em;
+    max-width: 800px;
+    padding: 0 1em;
+}
+
 /* Two-column result card */
 .result-card {
     display: flex;

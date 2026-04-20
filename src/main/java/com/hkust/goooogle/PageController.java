@@ -45,6 +45,8 @@ public class PageController {
 
         //Map <int pid, int score>
         if (q != null && !q.isEmpty()) {
+            long startTime = System.currentTimeMillis();
+
             Map<Integer, Integer> ranking = searchService.search(q, 10);
             
             Map<Integer, Integer> finalRanking;
@@ -54,7 +56,12 @@ public class PageController {
                 finalRanking = ranking;
             }
 
-            model.addAttribute("results", searchService.getPages(finalRanking));
+            List<com.hkust.goooogle.models.Page> pages = searchService.getPages(finalRanking);
+            long elapsedMs = System.currentTimeMillis() - startTime;
+
+            model.addAttribute("results", pages);
+            model.addAttribute("resultCount", pages.size());
+            model.addAttribute("searchTimeMs", elapsedMs);
         }
         return "search";
     }

@@ -16,6 +16,9 @@
         </div>
     </form>
     <div class="results-wrapper">
+        <p class="search-stats" th:if="${resultCount != null}"
+           th:text="'About ' + ${resultCount} + ' result' + (${resultCount} != 1 ? 's' : '') + ' (' + ${searchTimeMs} + ' ms)'">
+        </p>
         <div th:if="${results != null}">
             <div th:if="${#lists.isEmpty(results)}">No results found.</div>
             <ul th:if="${!#lists.isEmpty(results)}" class="result-list">
