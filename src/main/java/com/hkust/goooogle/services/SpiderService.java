@@ -143,7 +143,8 @@ public class SpiderService {
         int contentSize = extractContentSize(document);
         String title = document.title();
         String bodyText = document.body().text();
-        String fullPage = title + " " + bodyText;
+        // Store as: plain title + unique divider + plain body (HTML tags already stripped by Jsoup .text())
+        String fullPage = title + "\u001F" + bodyText;
 
         KeyHolder keyHolder = new GeneratedKeyHolder();
         int rows = db.update(connection -> {
