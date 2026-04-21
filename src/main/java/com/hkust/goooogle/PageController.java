@@ -49,9 +49,9 @@ public String search(@RequestParam(value = "q", required = false) String q,
     if (q != null && !q.isEmpty()) {
         long startTime = System.currentTimeMillis();
 
-        Map<Integer, Double> ranking = searchService.search(q, 10);
+        Map<Integer, Float> ranking = searchService.search(q, 10);
         
-        Map<Integer, Double> finalRanking;
+        Map<Integer, Float> finalRanking;
         if (isExactMatch) {
             finalRanking = searchService.excludeNonExactMatch(ranking, q);
         } else {

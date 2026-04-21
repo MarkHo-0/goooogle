@@ -44,7 +44,7 @@ public class SearchService {
     }
 
     // Main search method
-    public Map<Integer, Double> search(String query, int limit) {
+    public Map<Integer, Float> search(String query, int limit) {
         if (query == null || query.isBlank()) {
             return Collections.emptyMap();
         }
@@ -132,22 +132,22 @@ public class SearchService {
         }
         
         // Calculate similarity scores
-        Map<Integer, Double> similarityScores = new HashMap<>();
+        Map<Integer, Float> similarityScores = new HashMap<>();
         
         for (int pageId : candidatePages) {
             Map<String, Double> docVector = docTfIdfVectors.getOrDefault(pageId, new HashMap<>());
             double similarity = cosineSimilarity(queryVector, docVector);
             if (similarity > 0) {
-                double scaledScore = Math.round(similarity * 10000.0) / 100.0;
+                float scaledScore = (float)(Math.round(similarity * 10000.0) / 100.0);
                 similarityScores.put(pageId, scaledScore);
             }
         }
         
         // Sort and return top results
-        List<Map.Entry<Integer, Double>> sorted = new ArrayList<>(similarityScores.entrySet());
-        sorted.sort((a, b) -> Double.compare(b.getValue(), a.getValue()));
+        List<Map.Entry<Integer, Float>> sorted = new ArrayList<>(similarityScores.entrySet());
+        sorted.sort((a, b) -> Float.compare(b.getValue(), a.getValue()));
         
-        Map<Integer, Double> results = new LinkedHashMap<>();
+        Map<Integer, Float> results = new LinkedHashMap<>();
         for (int i = 0; i < Math.min(limit, sorted.size()); i++) {
             results.put(sorted.get(i).getKey(), sorted.get(i).getValue());
         }
@@ -158,7 +158,7 @@ public class SearchService {
         System.out.println("├─────────────────────────────────────────────────────────┤");
         
         int rank = 1;
-        for (Map.Entry<Integer, Double> entry : results.entrySet()) {
+        for (Map.Entry<Integer, Float> entry : results.entrySet()) {
             String title = pageTitles.get(entry.getKey());
             if (title == null) title = "Unknown";
             // Truncate long titles
@@ -254,18 +254,22 @@ public class SearchService {
         return freq == null ? 0 : freq;
     }
     
-    public Map<Integer, Double> excludeNonExactMatch(Map<Integer, Double> ranking, String query) {
+    public Map<Integer, Float> excludeNonExactMatch(Map<Integer, Float> ranking, String query) {
         if (ranking.isEmpty()) {
             return new LinkedHashMap<>();
         }
 
         List<Integer> pageIds = new ArrayList<>(ranking.keySet());
-        String escapedQuery = query.toLowerCase()
+
+        // Normalise whitespace so "HKUST  CSE" matches the same as "HKUST CSE"
+        String normalised = query.trim().toLowerCase().replaceAll("\\s+", " ");
+        String escapedQuery = normalised
             .replace("\\", "\\\\")
             .replace("%", "\\%")
             .replace("_", "\\_");
         String likePattern = "%" + escapedQuery + "%";
 
+        // A page qualifies only if the exact consecutive phrase appears in full_page
         StringBuilder sql = new StringBuilder("SELECT id FROM pages WHERE id IN (");
         for (int i = 0; i < pageIds.size(); i++) {
             if (i > 0) sql.append(",");
@@ -281,7 +285,7 @@ public class SearchService {
             params.toArray()
         ));
 
-        Map<Integer, Double> exactMatches = new LinkedHashMap<>();
+        Map<Integer, Float> exactMatches = new LinkedHashMap<>();
         for (Integer pageId : pageIds) {
             if (matchingIds.contains(pageId)) {
                 exactMatches.put(pageId, ranking.get(pageId));
@@ -294,7 +298,7 @@ public class SearchService {
             System.out.println("│  EXACT MATCH RESULTS for: \"" + query + "\"");
             System.out.println("├─────────────────────────────────────────────────────────┤");
             int rank = 1;
-            for (Map.Entry<Integer, Double> entry : exactMatches.entrySet()) {
+            for (Map.Entry<Integer, Float> entry : exactMatches.entrySet()) {
                 String title = getPageTitle(entry.getKey());
                 if (title == null) title = "Unknown";
                 if (title.length() > 50) title = title.substring(0, 47) + "...";
@@ -316,7 +320,7 @@ public class SearchService {
         }
     }
 
-    public List<Page> getPages(Map<Integer, Double> ranking) {
+    public List<Page> getPages(Map<Integer, Float> ranking) {
         if (ranking.isEmpty()) {
             return Collections.emptyList();
         }
@@ -406,8 +410,8 @@ public class SearchService {
             String[] meta = metaMap.get(pageId);
             if (meta == null) continue;
             
-            Double similarityScore = ranking.get(pageId);
-            int score = similarityScore != null ? similarityScore.intValue() : 0;
+            Float similarityScore = ranking.get(pageId);
+            float score = similarityScore != null ? similarityScore : 0f;
             
             pages.add(new Page(
                 meta[0], meta[1], meta[2],
