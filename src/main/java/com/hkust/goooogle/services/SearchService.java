@@ -15,7 +15,6 @@ public class SearchService {
     private JdbcTemplate db;
     
     private final Porter stemmer = new Porter();
-    private final float BETA = 10.0f;
     private final Set<String> stopWords;
 
     public SearchService(JdbcTemplate jdbcTemplate) {
@@ -49,8 +48,8 @@ public class SearchService {
             return Collections.emptyMap();
         }
         
-        // Build query vector
-        Map<String, Double> queryVector = buildTfIdfQueryVector(query);
+        // Build query vector (keep stop words in queries!)
+        Map<String, Float> queryVector = buildQueryVector(query);
         if (queryVector.isEmpty()) {
             return Collections.emptyMap();
         }
@@ -61,12 +60,13 @@ public class SearchService {
             return Collections.emptyMap();
         }
         
-        // Get candidate pages (OR logic)
+        // Get candidate pages with their weighted_count directly from DB
         Set<String> queryTerms = queryVector.keySet();
         String placeholders = String.join(",", Collections.nCopies(queryTerms.size(), "?"));
         
-        String candidateSql = 
-            "SELECT DISTINCT p.id, p.title " +
+        // Single SQL to get pages and their weighted counts
+        String sql = 
+            "SELECT p.id, p.title, w.word, k.weighted_count " +
             "FROM pages p " +
             "JOIN keywords k ON p.id = k.page_id " +
             "JOIN words w ON k.word_id = w.id " +
@@ -74,15 +74,21 @@ public class SearchService {
         
         List<Object> params = new ArrayList<>(queryTerms);
         
-        // Store page titles for output
+        // Store page data
         Map<Integer, String> pageTitles = new HashMap<>();
-        List<Integer> candidatePages = new ArrayList<>();
+        Map<Integer, Map<String, Float>> pageWeightedCounts = new HashMap<>();
+        Set<Integer> candidatePages = new HashSet<>();
         
-        db.query(candidateSql, (rs) -> {
-            int id = rs.getInt("id");
+        db.query(sql, (rs) -> {
+            int pageId = rs.getInt("id");
             String title = rs.getString("title");
-            candidatePages.add(id);
-            pageTitles.put(id, title);
+            String word = rs.getString("word");
+            float weightedCount = rs.getFloat("weighted_count");
+            
+            candidatePages.add(pageId);
+            pageTitles.put(pageId, title);
+            pageWeightedCounts.computeIfAbsent(pageId, k -> new HashMap<>())
+                              .put(word, weightedCount);
         }, params.toArray());
         
         if (candidatePages.isEmpty()) {
@@ -90,56 +96,31 @@ public class SearchService {
             return Collections.emptyMap();
         }
         
-        // Get term frequencies
-        String tfSql = 
-            "SELECT p.id, w.word, " +
-            "       (k.title_count * ? + k.body_count) as tf_weight " +
-            "FROM pages p " +
-            "JOIN keywords k ON p.id = k.page_id " +
-            "JOIN words w ON k.word_id = w.id " +
-            "WHERE p.id IN (" + String.join(",", Collections.nCopies(candidatePages.size(), "?")) + ")";
-        
-        List<Object> tfParams = new ArrayList<>();
-        tfParams.add(BETA);
-        tfParams.addAll(candidatePages);
-        
-        Map<Integer, Map<String, Double>> docTfVectors = new HashMap<>();
-        
-        db.query(tfSql, (rs) -> {
-            int pageId = rs.getInt("id");
-            String word = rs.getString("word");
-            double tf = rs.getDouble("tf_weight");
-            docTfVectors.computeIfAbsent(pageId, k -> new HashMap<>()).put(word, tf);
-        }, tfParams.toArray());
-        
-        // Calculate TF-IDF for documents
-        Map<Integer, Map<String, Double>> docTfIdfVectors = new HashMap<>();
-        
-        for (int pageId : candidatePages) {
-            Map<String, Double> docTf = docTfVectors.getOrDefault(pageId, new HashMap<>());
-            Map<String, Double> docTfIdf = new HashMap<>();
-            
-            for (Map.Entry<String, Double> entry : docTf.entrySet()) {
-                String term = entry.getKey();
-                double tf = entry.getValue();
-                int docFreq = getDocumentFrequency(term);
-                if (docFreq > 0) {
-                    double idf = Math.log((double) totalDocuments / docFreq);
-                    docTfIdf.put(term, tf * idf);
-                }
-            }
-            docTfIdfVectors.put(pageId, docTfIdf);
-        }
-        
-        // Calculate similarity scores
+        // Calculate similarity scores using weighted_count directly
         Map<Integer, Float> similarityScores = new HashMap<>();
+        boolean isSingleTermQuery = (queryVector.size() == 1);
         
         for (int pageId : candidatePages) {
-            Map<String, Double> docVector = docTfIdfVectors.getOrDefault(pageId, new HashMap<>());
-            double similarity = cosineSimilarity(queryVector, docVector);
+            Map<String, Float> docWeightedCounts = pageWeightedCounts.getOrDefault(pageId, new HashMap<>());
+            
+            float similarity;
+            if (isSingleTermQuery) {
+                // Single term: use TF-IDF score
+                String term = queryVector.keySet().iterator().next();
+                float weightedCount = docWeightedCounts.getOrDefault(term, 0f);
+                int docFreq = getDocumentFrequency(term);
+                float idf = (float) Math.log((double) totalDocuments / docFreq);
+                similarity = weightedCount * idf;
+                // Scale to 0-100
+                similarity = Math.min(100, similarity * 5f);
+            } else {
+                // Multi-term: use cosine similarity with pre-calculated weighted_count
+                similarity = cosineSimilarity(queryVector, docWeightedCounts, totalDocuments);
+                similarity = Math.round(similarity * 10000f) / 100f;
+            }
+            
             if (similarity > 0) {
-                float scaledScore = (float)(Math.round(similarity * 10000.0) / 100.0);
-                similarityScores.put(pageId, scaledScore);
+                similarityScores.put(pageId, similarity);
             }
         }
         
@@ -152,16 +133,20 @@ public class SearchService {
             results.put(sorted.get(i).getKey(), sorted.get(i).getValue());
         }
         
-        // ALWAYS print ranking and similarity scores
+        // Print ranking
         System.out.println("\n┌─────────────────────────────────────────────────────────┐");
         System.out.println("│  Search Results for: \"" + query + "\"");
+        if (isSingleTermQuery) {
+            System.out.println("│  Mode: Single-term (TF-IDF)");
+        } else {
+            System.out.println("│  Mode: Multi-term (Cosine Similarity)");
+        }
         System.out.println("├─────────────────────────────────────────────────────────┤");
         
         int rank = 1;
         for (Map.Entry<Integer, Float> entry : results.entrySet()) {
             String title = pageTitles.get(entry.getKey());
             if (title == null) title = "Unknown";
-            // Truncate long titles
             if (title.length() > 50) title = title.substring(0, 47) + "...";
             
             System.out.printf("│  %2d. %-40s │\n", rank, title);
@@ -177,13 +162,15 @@ public class SearchService {
         return results;
     }
     
-    private Map<String, Double> buildTfIdfQueryVector(String query) {
+    // Build query vector (keep stop words - they are meaningful for search!)
+    private Map<String, Float> buildQueryVector(String query) {
         String[] words = query.toLowerCase().split("\\s+");
         Map<String, Integer> queryTf = new HashMap<>();
         
         for (String word : words) {
             String processed = IndexerService.removeTrailingPunctuation(word);
-            if (!processed.isEmpty() && !stopWords.contains(processed)) {
+            if (!processed.isEmpty()) {
+                // Keep stop words in queries - they are meaningful!
                 String stemmed = stemmer.stripAffixes(processed);
                 if (!stemmed.isEmpty()) {
                     queryTf.put(stemmed, queryTf.getOrDefault(stemmed, 0) + 1);
@@ -192,24 +179,24 @@ public class SearchService {
         }
         
         int totalDocuments = getTotalDocumentCount();
-        Map<String, Double> queryTfIdf = new HashMap<>();
+        Map<String, Float> queryTfIdf = new HashMap<>();
         
         for (Map.Entry<String, Integer> entry : queryTf.entrySet()) {
             String term = entry.getKey();
             int tf = entry.getValue();
             int docFreq = getDocumentFrequency(term);
             if (docFreq > 0) {
-                double idf = Math.log((double) totalDocuments / docFreq);
+                float idf = (float) Math.log((double) totalDocuments / docFreq);
                 queryTfIdf.put(term, tf * idf);
             }
         }
         
-        // Normalize
-        double norm = 0.0;
-        for (double weight : queryTfIdf.values()) {
+        // Normalize query vector
+        float norm = 0f;
+        for (float weight : queryTfIdf.values()) {
             norm += weight * weight;
         }
-        norm = Math.sqrt(norm);
+        norm = (float) Math.sqrt(norm);
         if (norm > 0) {
             for (String term : queryTfIdf.keySet()) {
                 queryTfIdf.put(term, queryTfIdf.get(term) / norm);
@@ -219,26 +206,51 @@ public class SearchService {
         return queryTfIdf;
     }
     
-    private double cosineSimilarity(Map<String, Double> queryVector, Map<String, Double> docVector) {
-        double dotProduct = 0.0;
-        double queryNorm = 0.0;
-        double docNorm = 0.0;
+    // Cosine similarity using pre-calculated weighted_count from database
+    private float cosineSimilarity(Map<String, Float> queryVector, 
+                                    Map<String, Float> docWeightedCounts,
+                                    int totalDocuments) {
+        float dotProduct = 0f;
+        float queryNorm = 0f;
+        float docNorm = 0f;
         
-        for (Map.Entry<String, Double> entry : queryVector.entrySet()) {
+        // Calculate dot product and query norm
+        for (Map.Entry<String, Float> entry : queryVector.entrySet()) {
             String term = entry.getKey();
-            double queryWeight = entry.getValue();
-            double docWeight = docVector.getOrDefault(term, 0.0);
-            dotProduct += queryWeight * docWeight;
+            float queryWeight = entry.getValue();
+            float docWeightedCount = docWeightedCounts.getOrDefault(term, 0f);
+            
+            // Get IDF for this term
+            int docFreq = getDocumentFrequency(term);
+            float idf = 1f;
+            if (docFreq > 0) {
+                idf = (float) Math.log((double) totalDocuments / docFreq);
+            }
+            
+            // Document TF-IDF = weighted_count * idf
+            float docTfIdf = docWeightedCount * idf;
+            
+            dotProduct += queryWeight * docTfIdf;
             queryNorm += queryWeight * queryWeight;
         }
-        queryNorm = Math.sqrt(queryNorm);
+        queryNorm = (float) Math.sqrt(queryNorm);
         
-        for (double weight : docVector.values()) {
-            docNorm += weight * weight;
+        // Calculate document norm
+        for (Map.Entry<String, Float> entry : docWeightedCounts.entrySet()) {
+            String term = entry.getKey();
+            if (queryVector.containsKey(term)) {
+                int docFreq = getDocumentFrequency(term);
+                float idf = 1f;
+                if (docFreq > 0) {
+                    idf = (float) Math.log((double) totalDocuments / docFreq);
+                }
+                float docTfIdf = entry.getValue() * idf;
+                docNorm += docTfIdf * docTfIdf;
+            }
         }
-        docNorm = Math.sqrt(docNorm);
+        docNorm = (float) Math.sqrt(docNorm);
         
-        if (queryNorm == 0 || docNorm == 0) return 0.0;
+        if (queryNorm == 0 || docNorm == 0) return 0f;
         return dotProduct / (queryNorm * docNorm);
     }
     
@@ -269,7 +281,6 @@ public class SearchService {
             .replace("_", "\\_");
         String likePattern = "%" + escapedQuery + "%";
 
-        // A page qualifies only if the exact consecutive phrase appears in full_page
         StringBuilder sql = new StringBuilder("SELECT id FROM pages WHERE id IN (");
         for (int i = 0; i < pageIds.size(); i++) {
             if (i > 0) sql.append(",");
