@@ -343,7 +343,7 @@ public class SearchService {
             return Collections.emptyList();
         }
 
-        String pageIds = listToString(new ArrayList<>(ranking.keySet()));
+        String pageIds = mapKeysToString(ranking.keySet());
 
         try {
             List<Page> pages = db.query(sqlFile_GetPagesByIds, Page.sqlMapper, pageIds, 5);
@@ -355,7 +355,17 @@ public class SearchService {
         }
     }
 
-    private static String listToString(List<Integer> list) {
-        return "[" + list.stream().map(String::valueOf).collect(Collectors.joining(",")) + "]";
+    private static String mapKeysToString(Set<Integer> keys) {
+        StringBuilder sb = new StringBuilder("[");
+        boolean first = true;
+        for (Integer id : keys) {
+            if (!first) {
+                sb.append(",");
+            }
+            sb.append(id);
+            first = false;
+        }
+        sb.append("]");
+        return sb.toString();
     }
 }
