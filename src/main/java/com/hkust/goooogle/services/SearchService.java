@@ -5,46 +5,20 @@ import com.hkust.goooogle.models.Page;
 import com.hkust.goooogle.models.Rankable;
 
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.core.io.ClassPathResource;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
-import IRUtilities.Porter;
 import java.util.*;
-import java.util.stream.Collectors;
 
 @Service
 public class SearchService {
-
     @Autowired
     private JdbcTemplate db;
-    
-    private final Porter stemmer = new Porter();
-    private final Set<String> stopWords;
+    private final IndexerService indexerService;
 
-    public SearchService(JdbcTemplate jdbcTemplate) {
+    public SearchService(JdbcTemplate jdbcTemplate, IndexerService indexerService) {
         this.db = jdbcTemplate;
-        this.stopWords = loadStopWords();
-    }
-
-    private Set<String> loadStopWords() {
-        try {
-            org.springframework.core.io.ClassPathResource resource = 
-                new org.springframework.core.io.ClassPathResource("stopwords.txt");
-            String content = new String(resource.getInputStream().readAllBytes(), 
-                java.nio.charset.StandardCharsets.UTF_8);
-            Set<String> words = new HashSet<>();
-            for (String line : content.split("\\n")) {
-                String trimmed = line.trim();
-                if (!trimmed.isEmpty()) {
-                    words.add(trimmed);
-                }
-            }
-            return words;
-        } catch (Exception e) {
-            System.err.println("Failed to load stop words: " + e.getMessage());
-            return Collections.emptySet();
-        }
+        this.indexerService = indexerService;
     }
 
     // Main search method
@@ -169,26 +143,14 @@ public class SearchService {
     
     // Build query vector (keep stop words - they are meaningful for search!)
     private Map<String, Float> buildQueryVector(String query) {
-        String[] words = query.toLowerCase().split("\\s+");
-        Map<String, Integer> queryTf = new HashMap<>();
-        
-        for (String word : words) {
-            String processed = IndexerService.removeTrailingPunctuation(word);
-            if (!processed.isEmpty()) {
-                // Keep stop words in queries - they are meaningful!
-                String stemmed = stemmer.stripAffixes(processed);
-                if (!stemmed.isEmpty()) {
-                    queryTf.put(stemmed, queryTf.getOrDefault(stemmed, 0) + 1);
-                }
-            }
-        }
+        Map<String, Long> queryTf = indexerService.computeWordDistribution(query);
         
         int totalDocuments = getTotalDocumentCount();
         Map<String, Float> queryTfIdf = new HashMap<>();
         
-        for (Map.Entry<String, Integer> entry : queryTf.entrySet()) {
+        for (Map.Entry<String, Long> entry : queryTf.entrySet()) {
             String term = entry.getKey();
-            int tf = entry.getValue();
+            long tf = entry.getValue();
             int docFreq = getDocumentFrequency(term);
             if (docFreq > 0) {
                 float idf = (float) Math.log((double) totalDocuments / docFreq);

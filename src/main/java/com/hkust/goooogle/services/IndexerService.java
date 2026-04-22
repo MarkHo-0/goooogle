@@ -54,7 +54,7 @@ public class IndexerService {
     }
 
     private static final Pattern wordSplitPattern = Pattern.compile("[\\s/\\-]+");
-    private Map<String, Long> computeWordDistribution(String content) {
+    public Map<String, Long> computeWordDistribution(String content) {
         if (content.isBlank()) return Collections.emptyMap();
 
         return wordSplitPattern.splitAsStream(content.toLowerCase().trim())
