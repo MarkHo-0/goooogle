@@ -1,5 +1,6 @@
 package com.hkust.goooogle.services;
 
+import com.hkust.goooogle.annotations.LoadSql;
 import com.hkust.goooogle.models.Page;
 import com.hkust.goooogle.models.Rankable;
 
@@ -335,8 +336,8 @@ public class SearchService {
         }
     }
 
-    static final ClassPathResource sqlFile_GetPagesByIds = new ClassPathResource("sql/get_pages_by_ids.sql");
-    static final int MaxKeywordsCount = 5;
+    @LoadSql("sql/get_pages_by_ids.sql")
+    private String sqlFile_GetPagesByIds;
     public List<Rankable<Page>> getPages(Map<Integer, Float> ranking) {
         if (ranking.isEmpty()) {
             return Collections.emptyList();
@@ -345,8 +346,7 @@ public class SearchService {
         String pageIds = listToString(new ArrayList<>(ranking.keySet()));
 
         try {
-            String sql = new String(sqlFile_GetPagesByIds.getInputStream().readAllBytes());
-            List<Page> pages = db.query(sql, Page.sqlMapper, pageIds, MaxKeywordsCount);
+            List<Page> pages = db.query(sqlFile_GetPagesByIds, Page.sqlMapper, pageIds, 5);
             Iterator<Float> scores = ranking.values().iterator();
             return pages.stream().map(page -> new Rankable<>(page, scores.next())).toList();
         } catch (Exception e) {
