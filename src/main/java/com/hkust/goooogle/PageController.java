@@ -2,6 +2,7 @@ package com.hkust.goooogle;
 
 import com.hkust.goooogle.models.ExportedPage;
 import com.hkust.goooogle.models.Page;
+import com.hkust.goooogle.models.Rankable;
 import com.hkust.goooogle.services.KeywordService;
 import com.hkust.goooogle.services.SearchService;
 import com.hkust.goooogle.services.SpiderService;
@@ -42,9 +43,7 @@ public class PageController {
 public String search(@RequestParam(value = "q", required = false) String q, 
                      @RequestParam(value = "exact", required = false) String exact, 
                      Model model) {
-    model.addAttribute("pageTitle", "Search");
     boolean isExactMatch = !"false".equals(exact);
-    model.addAttribute("exactMatch", isExactMatch ? "true" : "false");
 
     if (q != null && !q.isEmpty()) {
         long startTime = System.currentTimeMillis();
@@ -58,13 +57,16 @@ public String search(@RequestParam(value = "q", required = false) String q,
             finalRanking = ranking;
         }
 
-        List<Page> pages = searchService.getPages(finalRanking);
+        List<Rankable<Page>> pages = searchService.getPages(finalRanking);
         long elapsedMs = System.currentTimeMillis() - startTime;
 
         model.addAttribute("results", pages);
         model.addAttribute("resultCount", pages.size());
         model.addAttribute("searchTimeMs", elapsedMs);
     }
+
+    model.addAttribute("pageTitle", "Search");
+    model.addAttribute("exactMatch", isExactMatch ? "true" : "false");
     return "search";
 }
 

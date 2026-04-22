@@ -29,21 +29,21 @@
                         <!-- Left column -->
                         <div class="result-left">
                             <h3 class="result-title">
-                                <a th:href="${result.url}" target="_blank" th:text="${result.title}"></a>
+                                <a th:href="${result.item.url}" target="_blank" th:text="${result.item.title}"></a>
                             </h3>
-                            <p class="result-url" th:text="${result.url}"></p>
+                            <p class="result-url" th:text="${result.item.url}"></p>
 
-                            <p class="result-keywords" th:if="${!result.keywordsWithCounts.isEmpty()}">
+                            <p class="result-keywords" th:if="${!result.item.topNKeywords.isEmpty()}">
                                 <strong>Keywords: </strong>
-                                <span th:each="entry, kStat : ${result.keywordsWithCounts}">
-                                    <span th:text="${entry.key} + ' (' + ${entry.value} + ')'"></span><span th:if="${!kStat.last}">, </span>
+                                <span th:each="kw, iterStat : ${result.item.topNKeywords}">
+                                    <span th:text="${kw.word + ' (' + kw.totalCount() + ')'}"></span><span th:if="${!iterStat.last}">, </span>
                                 </span>
                             </p>
 
-                            <details class="result-links" th:if="${!result.parentPages.isEmpty()}">
-                                <summary th:text="'Parent pages (' + ${#lists.size(result.parentPages)} + ')'"></summary>
+                            <details class="result-links" th:if="${!result.item.parentPages.isEmpty()}">
+                                <summary th:text="'Parent pages (' + ${#lists.size(result.item.parentPages)} + ')'"></summary>
                                 <ul>
-                                    <li th:each="parent : ${result.parentPages}">
+                                    <li th:each="parent : ${result.item.parentPages}">
                                         <a th:href="${parent.url}" target="_blank"
                                            th:text="${parent.title} ?: ${parent.url}"></a>
                                         <span class="linked-page-url" th:if="${parent.title != null}"
@@ -52,10 +52,10 @@
                                 </ul>
                             </details>
 
-                            <details class="result-links" th:if="${!result.childPages.isEmpty()}">
-                                <summary th:text="'Child pages (' + ${#lists.size(result.childPages)} + ')'"></summary>
+                            <details class="result-links" th:if="${!result.item.childPages.isEmpty()}">
+                                <summary th:text="'Child pages (' + ${#lists.size(result.item.childPages)} + ')'"></summary>
                                 <ul>
-                                    <li th:each="child : ${result.childPages}">
+                                    <li th:each="child : ${result.item.childPages}">
                                         <a th:href="${child.url}" target="_blank"
                                            th:text="${child.title} ?: ${child.url}"></a>
                                         <span class="linked-page-url" th:if="${child.title != null}"
@@ -69,15 +69,15 @@
                         <div class="result-right">
                             <div class="result-meta-item">
                                 <span class="result-meta-label">Last modified</span>
-                                <span th:text="${result.lastModifyTime}"></span>
+                                <span th:text="${result.item.lastModifyTime}"></span>
                             </div>
                             <div class="result-meta-item">
                                 <span class="result-meta-label">Page size</span>
-                                <span th:text="${result.contentSize} + ' bytes'"></span>
+                                <span th:text="${result.item.contentSizeInBytes} + ' bytes'"></span>
                             </div>
                             <div class="result-meta-item">
                                 <span class="result-meta-label">Score</span>
-                                <span th:text="${result.score}"></span>
+                                <span th:text="${result.similarityScore}"></span>
                             </div>
                         </div>
 

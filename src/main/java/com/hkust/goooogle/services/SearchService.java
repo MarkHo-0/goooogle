@@ -1,12 +1,16 @@
 package com.hkust.goooogle.services;
 
 import com.hkust.goooogle.models.Page;
+import com.hkust.goooogle.models.Rankable;
+
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
 import IRUtilities.Porter;
 import java.util.*;
+import java.util.stream.Collectors;
 
 @Service
 public class SearchService {
@@ -331,109 +335,27 @@ public class SearchService {
         }
     }
 
-    public List<Page> getPages(Map<Integer, Float> ranking) {
+    static final ClassPathResource sqlFile_GetPagesByIds = new ClassPathResource("sql/get_pages_by_ids.sql");
+    static final int MaxKeywordsCount = 5;
+    public List<Rankable<Page>> getPages(Map<Integer, Float> ranking) {
         if (ranking.isEmpty()) {
             return Collections.emptyList();
         }
 
-        List<Integer> pageIds = new ArrayList<>(ranking.keySet());
-        int n = pageIds.size();
-        Object[] idsArray = pageIds.toArray();
-        String ph = String.join(",", Collections.nCopies(n, "?"));
+        String pageIds = listToString(new ArrayList<>(ranking.keySet()));
 
-        // Fetch page metadata
-        Map<Integer, String[]> metaMap = new HashMap<>();
-        db.query(
-            "SELECT id, url, title, last_modify_time, content_size FROM pages WHERE id IN (" + ph + ")",
-            (rs) -> {
-                metaMap.put(rs.getInt("id"), new String[]{
-                    rs.getString("url"),
-                    rs.getString("title"),
-                    rs.getString("last_modify_time"),
-                    rs.getString("content_size")
-                });
-            }, idsArray);
-
-        // Top 5 keywords per page
-        Map<Integer, Map<String, Integer>> keywordsMap = new HashMap<>();
-        db.query(
-            "SELECT page_id, word, weighted_count FROM (" +
-            "SELECT k.page_id, w.word, k.weighted_count, " +
-            "ROW_NUMBER() OVER (PARTITION BY k.page_id ORDER BY k.weighted_count DESC) AS rn " +
-            "FROM keywords k JOIN words w ON k.word_id = w.id WHERE k.page_id IN (" + ph + ")" +
-            ") WHERE rn <= 5",
-            (rs) -> {
-                keywordsMap
-                    .computeIfAbsent(rs.getInt("page_id"), k -> new LinkedHashMap<>())
-                    .put(rs.getString("word"), (int) rs.getFloat("weighted_count"));
-            }, idsArray);
-
-        Object[] doubleIds = new Object[n * 2];
-        System.arraycopy(idsArray, 0, doubleIds, 0, n);
-        System.arraycopy(idsArray, 0, doubleIds, n, n);
-
-        // Child pages
-        Map<Integer, List<Page>> childMap = new HashMap<>();
-        db.query(
-            "SELECT pid, url, title, is_pending FROM (" +
-            "SELECT l.parent_page_id AS pid, p.url AS url, p.title AS title, 0 AS is_pending " +
-            "  FROM links l JOIN pages p ON l.child_page_id = p.id WHERE l.parent_page_id IN (" + ph + ") " +
-            "UNION ALL " +
-            "SELECT page_id AS pid, outbound_link AS url, NULL AS title, 1 AS is_pending " +
-            "  FROM pending_links WHERE page_id IN (" + ph + ")" +
-            ")",
-            (rs) -> {
-                int pid = rs.getInt("pid");
-                List<Page> list = childMap.computeIfAbsent(pid, k -> new ArrayList<>());
-                if (list.size() < 5) {
-                    String title = rs.getInt("is_pending") == 1 ? "Page not indexed yet" : rs.getString("title");
-                    list.add(new Page(rs.getString("url"), title, null, 0,
-                        Collections.emptyMap(), Collections.emptyList(), Collections.emptyList(), 0));
-                }
-            }, doubleIds);
-
-        // Parent pages
-        Map<Integer, List<Page>> parentMap = new HashMap<>();
-        db.query(
-            "SELECT pid, url, title, is_pending FROM (" +
-            "SELECT l.child_page_id AS pid, p.url AS url, p.title AS title, 0 AS is_pending " +
-            "  FROM links l JOIN pages p ON l.parent_page_id = p.id WHERE l.child_page_id IN (" + ph + ") " +
-            "UNION ALL " +
-            "SELECT p2.id AS pid, p.url AS url, NULL AS title, 1 AS is_pending " +
-            "  FROM pending_links pl " +
-            "  JOIN pages p  ON pl.page_id      = p.id " +
-            "  JOIN pages p2 ON pl.outbound_link = p2.url " +
-            "  WHERE p2.id IN (" + ph + ")" +
-            ")",
-            (rs) -> {
-                int pid = rs.getInt("pid");
-                List<Page> list = parentMap.computeIfAbsent(pid, k -> new ArrayList<>());
-                if (list.size() < 5) {
-                    String title = rs.getInt("is_pending") == 1 ? "Page not indexed yet" : rs.getString("title");
-                    list.add(new Page(rs.getString("url"), title, null, 0,
-                        Collections.emptyMap(), Collections.emptyList(), Collections.emptyList(), 0));
-                }
-            }, doubleIds);
-
-        // Assemble results
-        List<Page> pages = new ArrayList<>();
-        for (Integer pageId : pageIds) {
-            String[] meta = metaMap.get(pageId);
-            if (meta == null) continue;
-            
-            Float similarityScore = ranking.get(pageId);
-            float score = similarityScore != null ? similarityScore : 0f;
-            
-            pages.add(new Page(
-                meta[0], meta[1], meta[2],
-                meta[3] != null ? Integer.parseInt(meta[3]) : 0,
-                keywordsMap.getOrDefault(pageId, Collections.emptyMap()),
-                childMap.getOrDefault(pageId, Collections.emptyList()),
-                parentMap.getOrDefault(pageId, Collections.emptyList()),
-                score
-            ));
+        try {
+            String sql = new String(sqlFile_GetPagesByIds.getInputStream().readAllBytes());
+            List<Page> pages = db.query(sql, Page.sqlMapper, pageIds, MaxKeywordsCount);
+            Iterator<Float> scores = ranking.values().iterator();
+            return pages.stream().map(page -> new Rankable<>(page, scores.next())).toList();
+        } catch (Exception e) {
+            System.out.println("Failed to fetch page details: " + e.getMessage());
+            return Collections.emptyList();
         }
+    }
 
-        return pages;
+    private static String listToString(List<Integer> list) {
+        return "[" + list.stream().map(String::valueOf).collect(Collectors.joining(",")) + "]";
     }
 }
