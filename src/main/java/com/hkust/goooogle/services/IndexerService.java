@@ -1,6 +1,7 @@
 package com.hkust.goooogle.services;
 
 import IRUtilities.Porter;
+import com.hkust.goooogle.models.IndexerStats;
 import org.jsoup.nodes.Document;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -23,6 +24,7 @@ public class IndexerService {
     private final Map<String, String> contractions;
     private final Map<String, String> symbols;
     private final Porter stemmer;
+    public final IndexerStats stats;
 
     public IndexerService(JdbcTemplate jdbcTemplate) {
         this.db = jdbcTemplate;
@@ -30,6 +32,7 @@ public class IndexerService {
         this.contractions = loadMapFromResource("contractions.txt");
         this.symbols = loadMapFromResource("symbols.txt");
         this.stemmer = new Porter();
+        this.stats = new IndexerStats(this::doUpdateStats);
     }
 
     public boolean indexPage(int pageId, String pageUrl, Document doc) {
@@ -213,17 +216,17 @@ public class IndexerService {
         return map;
     }
 
-    public String getIndexStats() {
-        Integer totalWords = db.queryForObject("SELECT COUNT(*) FROM words", Integer.class);
-        Integer totalKeywords = db.queryForObject("SELECT COUNT(*) FROM keywords", Integer.class);
-        Integer totalPages = db.queryForObject("SELECT COUNT(*) FROM pages", Integer.class);
-
-        return String.format(
-            "Index Stats: %d pages, %d unique words, %d keyword entries",
-            totalPages == null ? 0 : totalPages,
-            totalWords == null ? 0 : totalWords,
-            totalKeywords == null ? 0 : totalKeywords
-        );
+    // 不要直接呼叫，應該呼叫 stats.update() 來觸發更新
+    private void doUpdateStats(IndexerStats stats) {
+        try {
+            Integer indexedPages = db.queryForObject("SELECT COUNT(*) FROM pages", Integer.class);
+            Integer pendingPages = db.queryForObject("SELECT COUNT(*) FROM pending_links", Integer.class);
+            Integer indexedWords = db.queryForObject("SELECT COUNT(*) FROM words", Integer.class);
+            stats.setStats(indexedPages, pendingPages, indexedWords);
+        } catch (Exception e) {
+            System.err.println("Failed to access database for stats update: " + e.getMessage());
+            return;
+        }
     }
 
 }

@@ -86,6 +86,8 @@ public class SpiderService {
             indexerService.resolvePendingLinksFromAllPages();
         }
         
+        indexerService.stats.update();
+
         resetSpider();
         
         double duration = (System.currentTimeMillis() - startTime) / 1000.0;
