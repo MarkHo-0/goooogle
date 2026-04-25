@@ -10,8 +10,6 @@
 
 package IRUtilities;
 
-import java.io.*;
-
 class NewString {
   public String str;
 
@@ -24,12 +22,11 @@ public class Porter {
 
   private String Clean( String str ) {
      int last = str.length();
-     
-     Character ch = Character.valueOf(str.charAt(0));
+
      String temp = "";
 
      for ( int i=0; i < last; i++ ) {
-         if ( ch.isLetterOrDigit( str.charAt(i) ) )
+         if ( Character.isLetterOrDigit( str.charAt(i) ) )
             temp += str.charAt(i);
      }
    

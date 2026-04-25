@@ -114,6 +114,26 @@ main {
     margin-bottom: 0.1em;
 }
 
+.similar-pages-form {
+    display: inline;
+    margin-top: 0.4em;
+}
+
+.similar-pages-button {
+    margin-top: 0.4em;
+    padding: 0.2em 0.7em;
+    font-size: 0.85em;
+    color: #1a0dab;
+    background: none;
+    border: 1px solid #1a0dab;
+    border-radius: 3px;
+    cursor: pointer;
+}
+
+.similar-pages-button:hover {
+    background: #e8eafd;
+}
+
 .result-links {
     margin-top: 0.5em;
     font-size: 0.9em;

@@ -39,9 +39,12 @@
                                     <span th:text="${kw.word + ' (' + kw.totalCount() + ')'}"></span><span th:if="${!iterStat.last}">, </span>
                                 </span>
                             </p>
-
+                            <form th:if="${!result.item.topNKeywords.isEmpty()}" th:action="@{/search}" method="get" class="similar-pages-form">
+                                <input type="hidden" name="q" th:value="${result.item.topKeywordsAsQuery()}"/>
+                                <button type="submit" class="similar-pages-button">Get similar pages</button>
+                            </form>
                             <details class="result-links" th:if="${!result.item.parentPages.isEmpty()}">
-                                <summary th:text="'Parent pages (' + ${#lists.size(result.item.parentPages)} + ')'"></summary>
+                                <summary th:text="'Parent pages (' + ${#lists.size(result.item.parentPages)} + ')'\"></summary>
                                 <ul>
                                     <li th:each="parent : ${result.item.parentPages}">
                                         <a th:href="${parent.url}" target="_blank"
