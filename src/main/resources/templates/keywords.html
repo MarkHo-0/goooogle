@@ -2,13 +2,51 @@
 <html xmlns:th="http://www.thymeleaf.org" th:replace="~{layout :: layout(~{::section})}">
 <section>
     <form th:action="@{/keywords}" method="get" class="keywords-form">
-        <input type="text" name="q" th:value="${param.q}" placeholder="Query keyword..." class="keywords-input"/>
-        <button type="submit" class="keywords-button">Query</button>
+        <input type="hidden" name="selected" id="keywordSelectedState" th:value="${selectedKeywordsState}"/>
+        <div class="keywords-toolbar">
+            <input type="text" name="q" th:value="${param.q}" placeholder="Filter stemmed keywords..." class="keywords-input"/>
+            <select name="sort" class="keywords-sort-select">
+                <option th:each="sortOption : ${sortOptions.entrySet()}"
+                        th:value="${sortOption.key}"
+                        th:text="${sortOption.value}"
+                        th:selected="${selectedSort == sortOption.key}"></option>
+            </select>
+            <button type="submit" class="keywords-button">Browse</button>
+        </div>
     </form>
     <div class="keywords-wrapper">
-        <ul th:if="${keywords != null}" class="keywords-list">
-            <li th:each="word : ${keywords}" th:text="${word}" class="keyword-item"></li>
+        <form th:action="@{/search}" method="get" class="keyword-search-form" id="keywordSearchForm">
+            <input type="hidden" name="q" id="keywordVectorQuery"/>
+            <input type="hidden" name="exact" value="false"/>
+            <div class="keyword-selection-bar">
+                <div class="keyword-selection-display">
+                    <span class="keyword-selection-prefix">Selected:</span>
+                    <span class="keyword-selection-label" id="keywordSelectionLabel">None</span>
+                    <div class="keyword-selected-list" id="keywordSelectedList" aria-live="polite"></div>
+                </div>
+                <button type="submit" class="keywords-button" id="keywordSubmitButton">Search selected keywords</button>
+            </div>
+        </form>
+
+        <p class="keywords-note">Browse stemmed keywords indexed in the database, choose the ones you want, and submit them as a vector-space query.</p>
+
+        <div th:if="${keywords != null and #lists.isEmpty(keywords)}" class="keywords-empty">No keywords matched this filter.</div>
+
+        <ul th:if="${keywords != null and !#lists.isEmpty(keywords)}" class="keywords-list">
+            <li th:each="keyword : ${keywords}" class="keyword-item">
+                <label class="keyword-card">
+                    <input type="checkbox" class="keyword-checkbox" th:value="${keyword.word}"/>
+                    <span class="keyword-card-main">
+                        <span class="keyword-word" th:text="${keyword.word}"></span>
+                        <span class="keyword-meta">
+                            <span th:text="${keyword.totalOccurrences} + ' occurrences'"></span>
+                            <span th:text="${keyword.pageCount} + ' pages'"></span>
+                        </span>
+                    </span>
+                </label>
+            </li>
         </ul>
     </div>
+    <script th:utext="${keywordPickerScript}"></script>
 </section>
 </html>

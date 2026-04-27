@@ -46,9 +46,9 @@
                             <div class="result-links-row">
                                 <details class="result-links" th:if="${!result.item.parentPages.isEmpty()}"
                                          th:attr="name=${'page-links-' + iterStat.index}">
-                                    <summary th:text="'Parent pages (' + ${#lists.size(result.item.parentPages)} + ')'"></summary>
+                                    <summary th:text="'Parent pages (' + ${#lists.size(result.item.parentPages) > 5 ? 5 : #lists.size(result.item.parentPages)} + ')'"></summary>
                                     <ul>
-                                        <li th:each="parent : ${result.item.parentPages}">
+                                        <li th:each="parent, parentIter : ${result.item.parentPages}" th:if="${parentIter.index < 5}">
                                             <a th:href="${parent.url}" target="_blank"
                                                th:text="${parent.title} ?: ${parent.url}"></a>
                                             <span class="linked-page-url" th:if="${parent.title != null}"
@@ -59,9 +59,9 @@
 
                                 <details class="result-links result-links-child" th:if="${!result.item.childPages.isEmpty()}"
                                          th:attr="name=${'page-links-' + iterStat.index}">
-                                    <summary th:text="'Child pages (' + ${#lists.size(result.item.childPages)} + ')'"></summary>
+                                    <summary th:text="'Child pages (' + ${#lists.size(result.item.childPages) > 5 ? 5 : #lists.size(result.item.childPages)} + ')'"></summary>
                                     <ul>
-                                        <li th:each="child : ${result.item.childPages}">
+                                        <li th:each="child, childIter : ${result.item.childPages}" th:if="${childIter.index < 5}">
                                             <a th:href="${child.url}" target="_blank"
                                                th:text="${child.title} ?: ${child.url}"></a>
                                             <span class="linked-page-url" th:if="${child.title != null}"

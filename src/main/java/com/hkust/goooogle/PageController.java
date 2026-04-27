@@ -1,6 +1,7 @@
 package com.hkust.goooogle;
 
 import com.hkust.goooogle.models.ExportedPage;
+import com.hkust.goooogle.models.KeywordBrowseItem;
 import com.hkust.goooogle.models.Page;
 import com.hkust.goooogle.models.Rankable;
 import com.hkust.goooogle.services.KeywordService;
@@ -86,15 +87,22 @@ public String search(@RequestParam(value = "q", required = false) String q,
     }
 
     @GetMapping("/keywords")
-    public String keywords(@RequestParam(value = "q", required = false) String q, Model model) {
+    public String keywords(@RequestParam(value = "q", required = false) String q,
+                           @RequestParam(value = "sort", required = false) String sort,
+                           @RequestParam(value = "selected", required = false) String selected,
+                           Model model) {
         model.addAttribute("pageTitle", "Keywords");
-        List<String> keywords;
+        List<KeywordBrowseItem> keywords;
         if (q != null && !q.isEmpty()) {
-            keywords = keywordService.queryKeywords(q, 50, 0);
+            keywords = keywordService.queryKeywords(q, sort, 200, 0);
         } else {
-            keywords = keywordService.listKeywords(50, 0);
+            keywords = keywordService.listKeywords(sort, 200, 0);
         }
         model.addAttribute("keywords", keywords);
+        model.addAttribute("sortOptions", keywordService.sortOptions());
+        model.addAttribute("selectedSort", sort == null || sort.isBlank() ? "popularity_desc" : sort);
+        model.addAttribute("selectedKeywordsState", selected == null ? "" : selected);
+        model.addAttribute("keywordPickerScript", keywordService.keywordPickerScript());
         return "keywords";
     }
 
