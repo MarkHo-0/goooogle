@@ -34,6 +34,12 @@ public record Page(
         }
     };
 
+    public String topKeywordsAsQuery() {
+        return topNKeywords.stream()
+            .map(Keyword::word)
+            .collect(Collectors.joining(" "));
+    }
+
     public String toMultiLineString(boolean showKeywords, boolean showLinkedPages) {
         StringBuilder sb = new StringBuilder();
         
