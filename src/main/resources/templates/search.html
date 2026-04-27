@@ -43,29 +43,33 @@
                                 <input type="hidden" name="q" th:value="${result.item.topKeywordsAsQuery()}"/>
                                 <button type="submit" class="similar-pages-button">Get similar pages</button>
                             </form>
-                            <details class="result-links" th:if="${!result.item.parentPages.isEmpty()}">
-                                <summary th:text="'Parent pages (' + ${#lists.size(result.item.parentPages)} + ')'\"></summary>
-                                <ul>
-                                    <li th:each="parent : ${result.item.parentPages}">
-                                        <a th:href="${parent.url}" target="_blank"
-                                           th:text="${parent.title} ?: ${parent.url}"></a>
-                                        <span class="linked-page-url" th:if="${parent.title != null}"
-                                              th:text="${parent.url}"></span>
-                                    </li>
-                                </ul>
-                            </details>
+                            <div class="result-links-row">
+                                <details class="result-links" th:if="${!result.item.parentPages.isEmpty()}"
+                                         th:attr="name=${'page-links-' + iterStat.index}">
+                                    <summary th:text="'Parent pages (' + ${#lists.size(result.item.parentPages)} + ')'"></summary>
+                                    <ul>
+                                        <li th:each="parent : ${result.item.parentPages}">
+                                            <a th:href="${parent.url}" target="_blank"
+                                               th:text="${parent.title} ?: ${parent.url}"></a>
+                                            <span class="linked-page-url" th:if="${parent.title != null}"
+                                                  th:text="${parent.url}"></span>
+                                        </li>
+                                    </ul>
+                                </details>
 
-                            <details class="result-links" th:if="${!result.item.childPages.isEmpty()}">
-                                <summary th:text="'Child pages (' + ${#lists.size(result.item.childPages)} + ')'"></summary>
-                                <ul>
-                                    <li th:each="child : ${result.item.childPages}">
-                                        <a th:href="${child.url}" target="_blank"
-                                           th:text="${child.title} ?: ${child.url}"></a>
-                                        <span class="linked-page-url" th:if="${child.title != null}"
-                                              th:text="${child.url}"></span>
-                                    </li>
-                                </ul>
-                            </details>
+                                <details class="result-links result-links-child" th:if="${!result.item.childPages.isEmpty()}"
+                                         th:attr="name=${'page-links-' + iterStat.index}">
+                                    <summary th:text="'Child pages (' + ${#lists.size(result.item.childPages)} + ')'"></summary>
+                                    <ul>
+                                        <li th:each="child : ${result.item.childPages}">
+                                            <a th:href="${child.url}" target="_blank"
+                                               th:text="${child.title} ?: ${child.url}"></a>
+                                            <span class="linked-page-url" th:if="${child.title != null}"
+                                                  th:text="${child.url}"></span>
+                                        </li>
+                                    </ul>
+                                </details>
+                            </div>
                         </div>
 
                         <!-- Right column -->
