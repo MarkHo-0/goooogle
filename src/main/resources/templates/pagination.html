@@ -1,0 +1,39 @@
+<!-- Pagination Template Fragment -->
+<div th:fragment="pagination" th:if="${pagination.totalPages > 1}" class="pagination">
+    <nav class="pagination-nav">
+        <a th:if="${pagination.currentPage > 1}" th:href="@{/keywords(q=${q}, sort=${sort}, limit=${pagination.limit}, offset=${(pagination.currentPage-2)*pagination.limit})}" class="pagination-link prev">
+            ‹ Previous
+        </a>
+
+        <!-- Show ellipsis and first page if needed -->
+        <span th:if="${pagination.showPreviousEllipsis}" class="pagination-item">
+            <a th:href="@{/keywords(q=${q}, sort=${sort}, limit=${pagination.limit}, offset=0)}" 
+               th:text="1"
+               class="pagination-link"></a>
+        </span>
+        <span th:if="${pagination.showPreviousEllipsis}" class="pagination-ellipsis">...</span>
+
+        <!-- Display current range of page numbers -->
+        <span th:each="pageNum : ${#numbers.sequence(pagination.paginationStartPage, pagination.paginationEndPage)}" class="pagination-item">
+            <a th:if="${pageNum != pagination.currentPage}" 
+               th:href="@{/keywords(q=${q}, sort=${sort}, limit=${pagination.limit}, offset=${(pageNum-1)*pagination.limit})}" 
+               th:text="${pageNum}"
+               class="pagination-link"></a>
+            <span th:if="${pageNum == pagination.currentPage}" th:text="${pageNum}" class="pagination-current"></span>
+        </span>
+
+        <!-- Show ellipsis and last page if needed -->
+        <span th:if="${pagination.showNextEllipsis}" class="pagination-ellipsis">...</span>
+        <span th:if="${pagination.showNextEllipsis}" class="pagination-item">
+            <a th:if="${pagination.currentPage != pagination.totalPages}" 
+               th:href="@{/keywords(q=${q}, sort=${sort}, limit=${pagination.limit}, offset=${(pagination.totalPages-1)*pagination.limit})}" 
+               th:text="${pagination.totalPages}"
+               class="pagination-link"></a>
+            <span th:if="${pagination.currentPage == pagination.totalPages}" th:text="${pagination.totalPages}" class="pagination-current"></span>
+        </span>
+
+        <a th:if="${pagination.currentPage < pagination.totalPages}" th:href="@{/keywords(q=${q}, sort=${sort}, limit=${pagination.limit}, offset=${pagination.currentPage*pagination.limit})}" class="pagination-link next">
+            Next ›
+        </a>
+    </nav>
+</div>

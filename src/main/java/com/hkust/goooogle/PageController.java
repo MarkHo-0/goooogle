@@ -3,9 +3,11 @@ package com.hkust.goooogle;
 import com.hkust.goooogle.models.ExportedPage;
 import com.hkust.goooogle.models.Page;
 import com.hkust.goooogle.models.Rankable;
+import com.hkust.goooogle.models.Word;
 import com.hkust.goooogle.services.KeywordService;
 import com.hkust.goooogle.services.SearchService;
 import com.hkust.goooogle.services.SpiderService;
+import com.hkust.goooogle.utils.PaginationInfo;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -85,16 +87,31 @@ public String search(@RequestParam(value = "q", required = false) String q,
         return "spider";
     }
 
+    private static final int TOP_N_PAGES = 3;
+
     @GetMapping("/keywords")
-    public String keywords(@RequestParam(value = "q", required = false) String q, Model model) {
+    public String keywords(
+            @RequestParam(value = "q", required = false) String q,
+            @RequestParam(value = "sort", defaultValue = "count") String sort,
+            @RequestParam(value = "limit", defaultValue = "10") int limit,
+            @RequestParam(value = "offset", defaultValue = "0") int offset,
+            Model model) {
+        
+        // 獲取總關鍵字數量以計算分頁信息
+        int totalCount = keywordService.getTotalWordCount(q);
+        PaginationInfo pagination = new PaginationInfo(totalCount, limit, offset);
+        
+        // 查詢當前頁的關鍵字列表
+        List<Word> words = keywordService.listKeywords(q, sort, pagination.getLimit(), pagination.getOffset(), TOP_N_PAGES);
+        
+        // Add attributes to model
         model.addAttribute("pageTitle", "Keywords");
-        List<String> keywords;
-        if (q != null && !q.isEmpty()) {
-            keywords = keywordService.queryKeywords(q, 50, 0);
-        } else {
-            keywords = keywordService.listKeywords(50, 0);
-        }
-        model.addAttribute("keywords", keywords);
+        model.addAttribute("words", words);
+        model.addAttribute("q", q != null ? q : "");
+        model.addAttribute("sort", sort);
+        model.addAttribute("topNPages", TOP_N_PAGES);
+        model.addAttribute("pagination", pagination);
+        
         return "keywords";
     }
 
