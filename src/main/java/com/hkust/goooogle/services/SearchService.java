@@ -27,7 +27,7 @@ public class SearchService {
             return Collections.emptyMap();
         }
         
-        // Build query vector (keep stop words in queries!)
+        // Build query vector
         Map<String, Float> queryVector = buildQueryVector(query);
         if (queryVector.isEmpty()) {
             return Collections.emptyMap();
@@ -43,9 +43,8 @@ public class SearchService {
         Set<String> queryTerms = queryVector.keySet();
         String placeholders = String.join(",", Collections.nCopies(queryTerms.size(), "?"));
         
-        // Single SQL to get pages and their weighted counts
         String sql = 
-            "SELECT p.id, p.title, w.word, k.weighted_count " +
+            "SELECT p.id, w.word, k.weighted_count " +
             "FROM pages p " +
             "JOIN keywords k ON p.id = k.page_id " +
             "JOIN words w ON k.word_id = w.id " +
@@ -53,29 +52,25 @@ public class SearchService {
         
         List<Object> params = new ArrayList<>(queryTerms);
         
-        // Store page data
-        Map<Integer, String> pageTitles = new HashMap<>();
+        // Store page weighted counts
         Map<Integer, Map<String, Float>> pageWeightedCounts = new HashMap<>();
         Set<Integer> candidatePages = new HashSet<>();
         
         db.query(sql, (rs) -> {
             int pageId = rs.getInt("id");
-            String title = rs.getString("title");
             String word = rs.getString("word");
             float weightedCount = rs.getFloat("weighted_count");
             
             candidatePages.add(pageId);
-            pageTitles.put(pageId, title);
             pageWeightedCounts.computeIfAbsent(pageId, k -> new HashMap<>())
                               .put(word, weightedCount);
         }, params.toArray());
         
         if (candidatePages.isEmpty()) {
-            System.out.println("No results found for: " + query);
             return Collections.emptyMap();
         }
         
-        // Calculate similarity scores using weighted_count directly
+        // Calculate similarity scores
         Map<Integer, Float> similarityScores = new HashMap<>();
         boolean isSingleTermQuery = (queryVector.size() == 1);
         
@@ -89,11 +84,9 @@ public class SearchService {
                 float weightedCount = docWeightedCounts.getOrDefault(term, 0f);
                 int docFreq = getDocumentFrequency(term);
                 float idf = (float) Math.log((double) totalDocuments / docFreq);
-                similarity = weightedCount * idf;
-                // Scale to 0-100
-                similarity = Math.min(100, similarity * 5f);
+                similarity = Math.min(100, weightedCount * idf * 5f);
             } else {
-                // Multi-term: use cosine similarity with pre-calculated weighted_count
+                // Multi-term: use cosine similarity
                 similarity = cosineSimilarity(queryVector, docWeightedCounts, totalDocuments);
                 similarity = Math.round(similarity * 10000f) / 100f;
             }
@@ -112,36 +105,10 @@ public class SearchService {
             results.put(sorted.get(i).getKey(), sorted.get(i).getValue());
         }
         
-        // Print ranking
-        System.out.println("\n┌─────────────────────────────────────────────────────────┐");
-        System.out.println("│  Search Results for: \"" + query + "\"");
-        if (isSingleTermQuery) {
-            System.out.println("│  Mode: Single-term (TF-IDF)");
-        } else {
-            System.out.println("│  Mode: Multi-term (Cosine Similarity)");
-        }
-        System.out.println("├─────────────────────────────────────────────────────────┤");
-        
-        int rank = 1;
-        for (Map.Entry<Integer, Float> entry : results.entrySet()) {
-            String title = pageTitles.get(entry.getKey());
-            if (title == null) title = "Unknown";
-            if (title.length() > 50) title = title.substring(0, 47) + "...";
-            
-            System.out.printf("│  %2d. %-40s │\n", rank, title);
-            System.out.printf("│      Score: %.2f/100                          │\n", entry.getValue());
-            rank++;
-        }
-        
-        if (results.isEmpty()) {
-            System.out.println("│  No results found.                                 │");
-        }
-        System.out.println("└─────────────────────────────────────────────────────────┘\n");
-        
         return results;
     }
     
-    // Build query vector (keep stop words - they are meaningful for search!)
+    // Build query vector using IndexerService's computeWordDistribution
     private Map<String, Float> buildQueryVector(String query) {
         Map<String, Long> queryTf = indexerService.computeWordDistribution(query);
         
@@ -154,7 +121,7 @@ public class SearchService {
             int docFreq = getDocumentFrequency(term);
             if (docFreq > 0) {
                 float idf = (float) Math.log((double) totalDocuments / docFreq);
-                queryTfIdf.put(term, tf * idf);
+                queryTfIdf.put(term, (float) tf * idf);
             }
         }
         
@@ -187,14 +154,9 @@ public class SearchService {
             float queryWeight = entry.getValue();
             float docWeightedCount = docWeightedCounts.getOrDefault(term, 0f);
             
-            // Get IDF for this term
             int docFreq = getDocumentFrequency(term);
-            float idf = 1f;
-            if (docFreq > 0) {
-                idf = (float) Math.log((double) totalDocuments / docFreq);
-            }
+            float idf = (docFreq > 0) ? (float) Math.log((double) totalDocuments / docFreq) : 1f;
             
-            // Document TF-IDF = weighted_count * idf
             float docTfIdf = docWeightedCount * idf;
             
             dotProduct += queryWeight * docTfIdf;
@@ -207,10 +169,7 @@ public class SearchService {
             String term = entry.getKey();
             if (queryVector.containsKey(term)) {
                 int docFreq = getDocumentFrequency(term);
-                float idf = 1f;
-                if (docFreq > 0) {
-                    idf = (float) Math.log((double) totalDocuments / docFreq);
-                }
+                float idf = (docFreq > 0) ? (float) Math.log((double) totalDocuments / docFreq) : 1f;
                 float docTfIdf = entry.getValue() * idf;
                 docNorm += docTfIdf * docTfIdf;
             }
@@ -240,7 +199,6 @@ public class SearchService {
 
         List<Integer> pageIds = new ArrayList<>(ranking.keySet());
 
-        // Normalise whitespace so "HKUST  CSE" matches the same as "HKUST CSE"
         String normalised = query.trim().toLowerCase().replaceAll("\\s+", " ");
         String escapedQuery = normalised
             .replace("\\", "\\\\")
@@ -269,37 +227,13 @@ public class SearchService {
                 exactMatches.put(pageId, ranking.get(pageId));
             }
         }
-        
-        // Print exact match results
-        if (!exactMatches.isEmpty()) {
-            System.out.println("\n┌─────────────────────────────────────────────────────────┐");
-            System.out.println("│  EXACT MATCH RESULTS for: \"" + query + "\"");
-            System.out.println("├─────────────────────────────────────────────────────────┤");
-            int rank = 1;
-            for (Map.Entry<Integer, Float> entry : exactMatches.entrySet()) {
-                String title = getPageTitle(entry.getKey());
-                if (title == null) title = "Unknown";
-                if (title.length() > 50) title = title.substring(0, 47) + "...";
-                System.out.printf("│  %2d. %-40s │\n", rank, title);
-                System.out.printf("│      Score: %.2f/100                          │\n", entry.getValue());
-                rank++;
-            }
-            System.out.println("└─────────────────────────────────────────────────────────┘\n");
-        }
 
         return exactMatches;
-    }
-    
-    private String getPageTitle(int pageId) {
-        try {
-            return db.queryForObject("SELECT title FROM pages WHERE id = ?", String.class, pageId);
-        } catch (Exception e) {
-            return null;
-        }
     }
 
     @LoadSql("sql/get_pages_by_ids.sql")
     private String sqlFile_GetPagesByIds;
+    
     public List<Rankable<Page>> getPages(Map<Integer, Float> ranking) {
         if (ranking.isEmpty()) {
             return Collections.emptyList();
@@ -321,9 +255,7 @@ public class SearchService {
         StringBuilder sb = new StringBuilder("[");
         boolean first = true;
         for (Integer id : keys) {
-            if (!first) {
-                sb.append(",");
-            }
+            if (!first) sb.append(",");
             sb.append(id);
             first = false;
         }
