@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org" th:replace="~{layout :: layout(~{::section})}">
 <section>
-    <div class="keywords-controls">
+    <div class="centered-container" style="margin-bottom: 2em;">
         <form th:action="@{/keywords}" method="get" class="keywords-filter">
             <div class="filter-left">
                 <input type="text" name="q" th:value="${q}" placeholder="Search keywords..." class="search-input"/>
@@ -21,7 +21,7 @@
         </form>
     </div>
 
-    <div class="keywords-content">
+    <div class="centered-container">
         <div th:if="${words != null && !words.isEmpty()}" class="keywords-table-wrapper">
             <table class="keywords-table">
                 <thead>

@@ -15,79 +15,74 @@
             </label>
         </div>
     </form>
-    <div class="results-wrapper">
+    <div class="centered-container">
         <p class="search-stats" th:if="${resultCount != null}"
-           th:text="'About ' + ${resultCount} + ' result' + (${resultCount} != 1 ? 's' : '') + ' (' + ${searchTimeMs} + ' ms)'">
+           th:text="'Found ' + ${resultCount} + ' result' + (${resultCount} != 1 ? 's' : '') + ' in ' + ${searchTimeMs} + ' ms'">
         </p>
         <div th:if="${results != null}">
             <div th:if="${#lists.isEmpty(results)}">No results found.</div>
             <ul th:if="${!#lists.isEmpty(results)}" class="result-list">
-                <li th:each="result, iterStat : ${results}" class="result-item">
-                    <div class="result-rank" th:text="'#' + ${iterStat.count}"></div>
-                    <div class="result-card">
+                <li th:each="result, iterStat : ${results}" class="result-card">
+                    <!-- Left column -->
+                    <div class="result-left">
+                        <h3 class="result-title">
+                            <a th:href="${result.item.url}" target="_blank" th:text="${result.item.title}"></a>
+                        </h3>
+                        <p class="result-url" th:text="${result.item.url}"></p>
 
-                        <!-- Left column -->
-                        <div class="result-left">
-                            <h3 class="result-title">
-                                <a th:href="${result.item.url}" target="_blank" th:text="${result.item.title}"></a>
-                            </h3>
-                            <p class="result-url" th:text="${result.item.url}"></p>
+                        <p class="result-keywords" th:if="${!result.item.topNKeywords.isEmpty()}">
+                            <strong>Keywords: </strong>
+                            <span th:each="kw, iterStat : ${result.item.topNKeywords}">
+                                <span th:text="${kw.word + ' (' + kw.totalCount() + ')'}"></span><span th:if="${!iterStat.last}">, </span>
+                            </span>
+                        </p>
+                        <div class="result-links-row">
+                            <details class="result-links" th:if="${!result.item.parentPages.isEmpty()}"
+                                        th:attr="name=${'page-links-' + iterStat.index}">
+                                <summary th:text="'Parent pages (' + ${#lists.size(result.item.parentPages)} + ')'"></summary>
+                                <ul>
+                                    <li th:each="parent : ${result.item.parentPages}">
+                                        <a th:href="${parent.url}" target="_blank"
+                                            th:text="${parent.title} ?: ${parent.url}"></a>
+                                        <span class="linked-page-url" th:if="${parent.title != null}"
+                                                th:text="${parent.url}"></span>
+                                    </li>
+                                </ul>
+                            </details>
 
-                            <p class="result-keywords" th:if="${!result.item.topNKeywords.isEmpty()}">
-                                <strong>Keywords: </strong>
-                                <span th:each="kw, iterStat : ${result.item.topNKeywords}">
-                                    <span th:text="${kw.word + ' (' + kw.totalCount() + ')'}"></span><span th:if="${!iterStat.last}">, </span>
-                                </span>
-                            </p>
-                            <form th:if="${!result.item.topNKeywords.isEmpty()}" th:action="@{/search}" method="get" class="similar-pages-form">
-                                <input type="hidden" name="q" th:value="${result.item.topKeywordsAsQuery()}"/>
-                                <button type="submit" class="similar-pages-button">Get similar pages</button>
-                            </form>
-                            <div class="result-links-row">
-                                <details class="result-links" th:if="${!result.item.parentPages.isEmpty()}"
-                                         th:attr="name=${'page-links-' + iterStat.index}">
-                                    <summary th:text="'Parent pages (' + ${#lists.size(result.item.parentPages)} + ')'"></summary>
-                                    <ul>
-                                        <li th:each="parent : ${result.item.parentPages}">
-                                            <a th:href="${parent.url}" target="_blank"
-                                               th:text="${parent.title} ?: ${parent.url}"></a>
-                                            <span class="linked-page-url" th:if="${parent.title != null}"
-                                                  th:text="${parent.url}"></span>
-                                        </li>
-                                    </ul>
-                                </details>
+                            <details class="result-links" th:if="${!result.item.childPages.isEmpty()}"
+                                        th:attr="name=${'page-links-' + iterStat.index}">
+                                <summary th:text="'Child pages (' + ${#lists.size(result.item.childPages)} + ')'"></summary>
+                                <ul>
+                                    <li th:each="child : ${result.item.childPages}">
+                                        <a th:href="${child.url}" target="_blank"
+                                            th:text="${child.title} ?: ${child.url}"></a>
+                                        <span class="linked-page-url" th:if="${child.title != null}"
+                                                th:text="${child.url}"></span>
+                                    </li>
+                                </ul>
+                            </details>
 
-                                <details class="result-links result-links-child" th:if="${!result.item.childPages.isEmpty()}"
-                                         th:attr="name=${'page-links-' + iterStat.index}">
-                                    <summary th:text="'Child pages (' + ${#lists.size(result.item.childPages)} + ')'"></summary>
-                                    <ul>
-                                        <li th:each="child : ${result.item.childPages}">
-                                            <a th:href="${child.url}" target="_blank"
-                                               th:text="${child.title} ?: ${child.url}"></a>
-                                            <span class="linked-page-url" th:if="${child.title != null}"
-                                                  th:text="${child.url}"></span>
-                                        </li>
-                                    </ul>
-                                </details>
-                            </div>
+                            <a th:if="${!result.item.topNKeywords.isEmpty()}" th:href="@{/search(q=${result.item.topKeywordsAsQuery()})}" class="similar-pages-button">
+                                Get similar pages
+                            </a>
                         </div>
+                    </div>
 
-                        <!-- Right column -->
-                        <div class="result-right">
-                            <div class="result-meta-item">
-                                <span class="result-meta-label">Last modified</span>
-                                <span th:text="${result.item.lastModifyTime}"></span>
-                            </div>
-                            <div class="result-meta-item">
-                                <span class="result-meta-label">Page size</span>
-                                <span th:text="${result.item.contentSizeInBytes} + ' bytes'"></span>
-                            </div>
-                            <div class="result-meta-item">
-                                <span class="result-meta-label">Score</span>
-                                <span th:text="${result.similarityScore}"></span>
-                            </div>
+                    <!-- Right column -->
+                    <div class="result-right">
+                        <div class="result-meta-item">
+                            <span class="result-meta-label">Last modified</span>
+                            <span th:text="${result.item.lastModifyTime}"></span>
                         </div>
-
+                        <div class="result-meta-item">
+                            <span class="result-meta-label">Page size</span>
+                            <span th:text="${result.item.contentSizeInBytes} + ' bytes'"></span>
+                        </div>
+                        <div class="result-meta-item">
+                            <span class="result-meta-label">Similarity score</span>
+                            <span th:text="${result.similarityScore}"></span>
+                        </div>
                     </div>
                 </li>
             </ul>
