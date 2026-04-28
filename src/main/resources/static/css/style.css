@@ -72,6 +72,14 @@ main {
     margin: 0.5em 0;
 }
 
+.result-item {
+    position: relative;
+}
+
+.result-item:has(.result-links[open]) {
+    z-index: 10;
+}
+
 .search-stats {
     text-align: left;
     color: #70757a;
@@ -91,6 +99,7 @@ main {
     padding: 1em 1.2em;
     background: #fafafa;
     text-align: left;
+    position: relative;
 }
 
 .result-left {
@@ -176,6 +185,18 @@ main {
     position: relative;
 }
 
+.result-links-row .result-links > summary {
+    display: inline-block;
+    padding: 0.3em 0.8em;
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 999px;
+}
+
+.result-links-row .result-links[open] > summary {
+    border-color: #c5c5c5;
+}
+
 .result-links-row .result-links-child {
     position: absolute;
     left: 50%;
@@ -190,6 +211,7 @@ main {
     min-width: 260px;
     max-width: 420px;
     background: #fff;
+    opacity: 1;
     border: 1px solid #ddd;
     border-radius: 6px;
     padding: 0.5em 0.8em;
