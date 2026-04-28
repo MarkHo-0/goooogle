@@ -26,13 +26,17 @@ public class IndexerService {
     private final Porter stemmer;
     public final IndexerStats stats;
 
+    public IndexerStats getStats() {
+        return stats;
+    }
+
     public IndexerService(JdbcTemplate jdbcTemplate) {
         this.db = jdbcTemplate;
+        this.stats = new IndexerStats(this::doUpdateStats);
         this.stopWords = loadSetFromResource("stopwords.txt");
         this.contractions = loadMapFromResource("contractions.txt");
         this.symbols = loadMapFromResource("symbols.txt");
         this.stemmer = new Porter();
-        this.stats = new IndexerStats(this::doUpdateStats);
     }
 
     public boolean indexPage(int pageId, String pageUrl, Document doc) {

@@ -83,7 +83,7 @@ public class SpiderService {
             indexerService.resolvePendingLinksFromAllPages();
         }
         
-        indexerService.stats.update();
+        indexerService.getStats().update();
 
         resetSpider();
         
