@@ -75,7 +75,7 @@
                     <div class="result-right">
                         <div class="result-meta-item">
                             <span class="result-meta-label">Last modified</span>
-                            <span th:text="${result.item.lastModifyTime}"></span>
+                            <span th:text="${#temporals.format(result.item.lastModifyTime, 'yyyy-MM-dd HH:mm:ss')}"></span>
                         </div>
                         <div class="result-meta-item">
                             <span class="result-meta-label">Page size</span>

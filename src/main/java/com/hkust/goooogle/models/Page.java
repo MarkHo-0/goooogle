@@ -3,19 +3,21 @@ import tools.jackson.databind.ObjectMapper;
 import org.springframework.jdbc.core.RowMapper;
 
 import java.sql.SQLException;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.Locale;
 import java.util.stream.Collectors;
 
 public record Page(
     String url, 
     String title, 
-    String lastModifyTime, 
+    ZonedDateTime lastModifyTime, 
     int contentSizeInBytes, 
     List<Keyword> topNKeywords,
     List<RefPage> childPages, 
     List<RefPage> parentPages
 ) {
-
     private static final ObjectMapper JSON = new ObjectMapper();
 
     public static final RowMapper<Page> sqlMapper = (rs, rowNum) -> {
@@ -23,7 +25,7 @@ public record Page(
             return new Page(
                 rs.getString("url"),
                 rs.getString("title"),
-                rs.getString("last_modify_time"),
+                ZonedDateTime.parse(rs.getString("last_modify_time"), DateTimeFormatter.RFC_1123_DATE_TIME),
                 rs.getInt("content_size"),
                 JSON.readerForListOf(Keyword.class).readValue(rs.getString("top_N_Keywords")),
                 JSON.readerForListOf(RefPage.class).readValue(rs.getString("child_pages")),
