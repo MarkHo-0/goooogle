@@ -8,6 +8,7 @@ import com.hkust.goooogle.services.KeywordService;
 import com.hkust.goooogle.services.SearchService;
 import com.hkust.goooogle.services.SpiderService;
 import com.hkust.goooogle.utils.PaginationInfo;
+
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -19,6 +20,8 @@ import org.springframework.web.bind.annotation.RequestParam;
 
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 @Controller
 public class PageController {
@@ -26,6 +29,8 @@ public class PageController {
     private final SearchService searchService;
     private final SpiderService spiderService;
     private final KeywordService keywordService;
+
+    private final static Pattern QuatedStringPattern = Pattern.compile("\"([^\"]*)\"");
 
     public PageController(SearchService searchService,
                           SpiderService spiderService,
@@ -42,24 +47,24 @@ public class PageController {
     }
 
 @GetMapping("/search")
-public String search(@RequestParam(value = "q") String query, 
-                     @RequestParam(value = "exact", required = false, defaultValue = "false") Boolean requireExactMatch,
+public String search(@RequestParam(value = "q") String query,
                      @RequestParam(value = "direct_search", required = false, defaultValue = "false") Boolean requreDirectSearch,
                      Model model) {
 
-    if (query != null && !query.isEmpty()) {
+    Matcher requireExactMatch = QuatedStringPattern.matcher(query);
+    String cleanQuery = query.replaceAll("\"", "").trim();
+
+    if (cleanQuery != null && !cleanQuery.isEmpty()) {
         long startTime = System.currentTimeMillis();
 
-        Map<Integer, Float> ranking = searchService.search(query, 10);
+        Map<Integer, Float> ranking = searchService.search(cleanQuery, 10);
         
-        Map<Integer, Float> finalRanking;
-        if (requireExactMatch) {
-            finalRanking = searchService.excludeNonExactMatch(ranking, query);
-        } else {
-            finalRanking = ranking;
+        while (requireExactMatch.find()) {
+            String exactPhrase = requireExactMatch.group(1);
+            ranking = searchService.excludeNonExactMatch(ranking, exactPhrase);
         }
 
-        List<Rankable<Page>> pages = searchService.getPages(finalRanking);
+        List<Rankable<Page>> pages = searchService.getPages(ranking);
         long elapsedMs = System.currentTimeMillis() - startTime;
 
         model.addAttribute("results", pages);
