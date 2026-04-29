@@ -8,8 +8,8 @@
         </div>
         <div class="search-options">
             <label>
-                <input type="hidden" id="exactHidden" name="exact" th:value="${exactMatch}"/>
-                <input type="checkbox" id="exactCheckbox" th:checked="${exactMatch == 'true'}"
+                <input type="hidden" id="exactHidden" name="exact" th:value="${exact}"/>
+                <input type="checkbox" id="exactCheckbox" th:checked="${exact}"
                        onclick="document.getElementById('exactHidden').value = this.checked ? 'true' : 'false'"/>
                 Exact match
             </label>
@@ -63,7 +63,9 @@
                                 </ul>
                             </details>
 
-                            <a th:if="${!result.item.topNKeywords.isEmpty()}" th:href="@{/search(q=${result.item.topKeywordsAsQuery()})}" class="similar-pages-button">
+                            <a th:if="${!result.item.topNKeywords.isEmpty()}" 
+                                th:href="${result.item.buildSearchQueryForTopKeywords()}"
+                                class="similar-pages-button">
                                 Get similar pages
                             </a>
                         </div>

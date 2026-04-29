@@ -42,19 +42,19 @@ public class PageController {
     }
 
 @GetMapping("/search")
-public String search(@RequestParam(value = "q", required = false) String q, 
-                     @RequestParam(value = "exact", required = false) String exact, 
+public String search(@RequestParam(value = "q") String query, 
+                     @RequestParam(value = "exact", required = false, defaultValue = "false") Boolean requireExactMatch,
+                     @RequestParam(value = "direct_search", required = false, defaultValue = "false") Boolean requreDirectSearch,
                      Model model) {
-    boolean isExactMatch = !"false".equals(exact);
 
-    if (q != null && !q.isEmpty()) {
+    if (query != null && !query.isEmpty()) {
         long startTime = System.currentTimeMillis();
 
-        Map<Integer, Float> ranking = searchService.search(q, 10);
+        Map<Integer, Float> ranking = searchService.search(query, 10);
         
         Map<Integer, Float> finalRanking;
-        if (isExactMatch) {
-            finalRanking = searchService.excludeNonExactMatch(ranking, q);
+        if (requireExactMatch) {
+            finalRanking = searchService.excludeNonExactMatch(ranking, query);
         } else {
             finalRanking = ranking;
         }
@@ -68,7 +68,7 @@ public String search(@RequestParam(value = "q", required = false) String q,
     }
 
     model.addAttribute("pageTitle", "Search");
-    model.addAttribute("exactMatch", isExactMatch ? "true" : "false");
+    model.addAttribute("exact", requireExactMatch);
     return "search";
 }
 
