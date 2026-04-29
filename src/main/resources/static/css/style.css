@@ -27,45 +27,44 @@ nav > a:hover {
 }
 
 main {
+    display: flex;
+    align-items: center;
     flex: 1;
     padding: 2em 0;
 }
 
 input {
-    width: 100%;
-    max-width: 450px;
-    padding: 0.7em;
+    width: 450px;
+    padding: 0.6em;
     border: 1px solid #ddd;
     border-radius: 4px;
     font-size: 1em;
 }
 
-.centered-container {
-    max-width: 1200px;
-    margin-left: auto;
-    margin-right: auto;
+button {
+    padding: 0.6em 1.5em;
+    border: none;
+    font-size: 1em;
+    cursor: pointer;
+    border-radius: 4px;
+    background-color: #0073e6;
+    color: white;
 }
 
-.home-search-form {
+button:hover {
+    background-color: #0056b3;
+}
+
+section {
+    max-width: 1200px;
     text-align: center;
-    margin-top: 10em;
-    height: 40vh;
+    margin-left: auto;
+    margin-right: auto;
 }
 
 .search-form,
 .keywords-form {
     margin-bottom: 2em;
-    text-align: center;
-}
-
-.search-button,
-.keywords-button {
-    margin-left: 1em;
-}
-
-.results-wrapper,
-.keywords-wrapper,
-.spider-export-wrapper {
     text-align: center;
 }
 
@@ -214,25 +213,12 @@ input {
     text-align: left;
 }
 
-.spider-form {
-    height: 40vh;
-    max-width: 400px;
-    margin: 0 auto;
-    display: flex;
-    justify-content: center;
-    flex-direction: column;
-}
-
-.spider-field {
-    margin-bottom: 1em;
-}
-
 .spider-max-pages-input {
     width: 80px;
 }
 
-.spider-submit-wrapper {
-    text-align: center;
+.spider-form > button {
+    margin: 2em 0;
 }
 
 .spider-export-link {
@@ -258,16 +244,10 @@ input {
     justify-content: space-between;
 }
 
-.filter-left {
-    flex: 1;
-    min-width: 200px;
-}
-
 .filter-right {
     display: flex;
     gap: 1em;
-    align-items: center;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     justify-content: flex-end;
 }
 
@@ -280,23 +260,9 @@ input {
     cursor: pointer;
 }
 
-.filter-right .search-button {
-    padding: 0.6em 1.5em;
-    background-color: #4CAF50;
-    color: white;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-    font-size: 0.95em;
-}
-
-.filter-right .search-button:hover {
-    background-color: #45a049;
-}
-
 .keywords-table-wrapper {
     overflow-x: auto;
-    margin-bottom: 2em;
+    margin: 2em 0;
     border: 1px solid #ddd;
     border-radius: 4px;
 }
@@ -388,13 +354,7 @@ input {
 }
 
 /* Pagination styles */
-.pagination {
-    margin-top: 2em;
-    text-align: center;
-}
-
 .pagination-nav {
-    margin-bottom: 1em;
     display: flex;
     justify-content: center;
     align-items: center;

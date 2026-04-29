@@ -2,15 +2,15 @@
 <html xmlns:th="http://www.thymeleaf.org" th:replace="~{layout :: layout(~{::section})}">
 <section>
     <form th:action="@{/spider}" method="post" class="spider-form">
-        <div class="spider-field">
-            <input type="text" name="url" placeholder="Enter URL to index" class="spider-url-input"/>
-        </div>
+        <input type="text" name="url" placeholder="Enter URL to index" list="default_urls"/>
+        <datalist id="default_urls">
+            <option value="https://www.cse.ust.hk/~kwtleung/COMP4321/testpage.htm">
+        </datalist>
+        
         <div class="spider-field">
             <label>Max pages to crawl: <input type="number" name="maxPages" min="1" value="30" class="spider-max-pages-input"/></label>
         </div>
-        <div class="spider-submit-wrapper">
-            <button type="submit">Start Crawling</button>
-        </div>
+        <button type="submit">Start Crawling</button>
     </form>
 
     <div class="spider-export-wrapper">

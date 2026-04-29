@@ -1,11 +1,9 @@
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org" th:replace="~{layout :: layout(~{::section})}">
 <section>
-    <div class="centered-container" style="margin-bottom: 2em;">
+    <div>
         <form th:action="@{/keywords}" method="get" class="keywords-filter">
-            <div class="filter-left">
-                <input type="text" name="q" th:value="${q}" placeholder="Search keywords..." class="search-input"/>
-            </div>
+            <input type="text" name="q" th:value="${q}" placeholder="Search keywords..." class="search-input"/>
             <div class="filter-right">
                 <select name="limit" class="control-select" onchange="this.form.submit()">
                     <option value="10" th:selected="${limit == 10}">Per page 10</option>
@@ -21,43 +19,41 @@
         </form>
     </div>
 
-    <div class="centered-container">
-        <div th:if="${words != null && !words.isEmpty()}" class="keywords-table-wrapper">
-            <table class="keywords-table">
-                <thead>
-                    <tr>
-                        <th class="index-col">Index</th>
-                        <th class="word-col">Word</th>
-                        <th class="count-col">Count</th>
-                        <th class="pages-col" th:text="${'Top ' + topNPages + ' Pages'}"></th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr th:each="word, iter : ${words}">
-                        <td class="index-col" th:text="${pagination.offset + iter.count}"></td>
-                        <td class="word-col">
-                            <a th:href="@{/search(q=${word.word()})}" th:text="${word.word()}" class="word-link"></a>
-                        </td>
-                        <td class="count-col" th:text="${word.totalCount()}"></td>
-                        <td class="pages-col">
-                            <div class="pages-list">
-                                <span th:each="page : ${word.pages()}" class="page-badge">
-                                    <a th:href="@{${page.url()}}" th:text="${page.title()}" class="page-link"></a>
-                                </span>
-                            </div>
-                        </td>
-                    </tr>
-                </tbody>
-            </table>
-        </div>
-
-        <div th:if="${words == null || words.isEmpty()}" class="no-results">
-            <p>No matching keywords found</p>
-        </div>
-
-        <!-- Include pagination fragment -->
-        <div th:replace="~{pagination :: pagination}"></div>
+    <div th:if="${words != null && !words.isEmpty()}" class="keywords-table-wrapper">
+        <table class="keywords-table">
+            <thead>
+                <tr>
+                    <th class="index-col">Index</th>
+                    <th class="word-col">Word</th>
+                    <th class="count-col">Count</th>
+                    <th class="pages-col" th:text="${'Top ' + topNPages + ' Pages'}"></th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr th:each="word, iter : ${words}">
+                    <td class="index-col" th:text="${pagination.offset + iter.count}"></td>
+                    <td class="word-col">
+                        <a th:href="@{/search(q=${word.word()})}" th:text="${word.word()}" class="word-link"></a>
+                    </td>
+                    <td class="count-col" th:text="${word.totalCount()}"></td>
+                    <td class="pages-col">
+                        <div class="pages-list">
+                            <span th:each="page : ${word.pages()}" class="page-badge">
+                                <a th:href="@{${page.url()}}" th:text="${page.title()}" class="page-link"></a>
+                            </span>
+                        </div>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
     </div>
+
+    <div th:if="${words == null || words.isEmpty()}" class="no-results">
+        <p>No matching keywords found</p>
+    </div>
+
+    <!-- Include pagination fragment -->
+    <div th:replace="~{pagination :: pagination}"></div>
 </section>
 </html>
 

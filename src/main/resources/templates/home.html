@@ -1,11 +1,13 @@
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org" th:replace="~{layout :: layout(~{::section})}">
 <section>
+    <img src="/images/logo.svg" alt="Goooogle Logo" class="home-logo" style="margin-bottom: 4em;"/>
     <form th:action="@{/search}" method="get" class="home-search-form">
         <div class="search-input-group">
-            <input type="text" name="q" placeholder="Search..." class="search-input"/>
+            <input type="text" name="q" placeholder="Type your query here..." class="search-input"/>
             <button type="submit" class="search-button">Search</button>
         </div>
     </form>
+    <p class="search-tip" style="color: gray; margin-bottom: 8em;"> Tip: Use double quotes for exact phrase search, e.g. <em>"CSE department of HKUST"</em></p>
 </section>
 </html>

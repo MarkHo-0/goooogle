@@ -7,7 +7,7 @@
             <button type="submit" class="search-button">Search</button>
         </div>
     </form>
-    <div class="centered-container">
+    <div>
         <p class="search-stats" th:if="${resultCount != null}"
            th:text="'Found ' + ${resultCount} + ' result' + (${resultCount} != 1 ? 's' : '') + ' in ' + ${searchTimeMs} + ' ms'">
         </p>
