@@ -1,9 +1,7 @@
 # Goooogle
 
 ## 1. Project Overview
-Goooogle is a university course project with the final goal of building a complete web search engine.
-Phase 1 has been completed, including web crawling, indexing, link processing, and data export.
-Phase 2 focuses on implementing full search and keyword retrieval functionalities.
+Goooogle is a university course project with the final goal of building a complete web search engine. It provides a complete local search engine with web crawling, indexing, relevance-based search, keyword browsing, link processing, and exportable crawl results.
 
 ### Key Third-party Libraries
 - Spring Boot (application framework for MVC routing)
@@ -26,31 +24,43 @@ Phase 2 focuses on implementing full search and keyword retrieval functionalitie
 ```
 5. Open your browser and navigate to `localhost:8080`
 
-## 3. Completed Features and User Guides
+## 3. Feature Highlights and User Guides
 
-### 3.1 Spider
+### 3.1 Search
+1. Open the `Search` page from the nav bar.
+2. Enter one or more keywords in the search box and submit the query.
+3. Wrap words in double quotes to require an exact phrase match.
+4. Results are ranked by relevance and show the matching pages plus the search time.
+
+### 3.2 Keywords
+1. Open the `Keywords` page from the nav bar.
+2. Search keyword text with filters, or sort by name/count using the page controls.
+3. Adjust the page size and offset to browse more results.
+4. Each keyword entry shows the top associated pages.
+
+### 3.3 Spider
 1. Switch to `Spider` page from the nav bar.
 2. Enter the start URL and max number of pages to crawl.
 3. Click `Start Crawling`.
-4. Completion should be confirmed from logs by showing `Spider completed in x seconds` in the backend console, as dynamic communication is not yet implemented on the frontend.
+4. Crawling runs in a background thread, and completion is reported in the backend console as `Spider completed in x seconds`.
 
-### 3.2 Export Indexed Data
+### 3.4 Export Indexed Data
 
-1. Click `Export Database to TXT` in the `Spider` page after the completion of indexing 
-2. `spider_result.txt` will be generated and downloaded automatically.
+1. Click `Export Database to TXT` on the `Spider` page after indexing is complete.
+2. The browser downloads `spider_result.txt` as a text file.
 
 ## 4. Project Architecture
 
 ### 4.1 Layered Structure
 - Controller layer:
-	[PageController.java](src/main/java/com/hkust/goooogle/PageController.java) handles routes and binds UI with services.
+	[PageController.java](src/main/java/com/hkust/goooogle/PageController.java) handles the home, search, spider, keywords, and export routes.
 - Service layer:
 	- [SpiderService.java](src/main/java/com/hkust/goooogle/services/SpiderService.java): crawl workflow and page persistence
-	- [IndexerService.java](src/main/java/com/hkust/goooogle/services/IndexerService.java): token processing and keyword indexing
-	- [SearchService.java](src/main/java/com/hkust/goooogle/services/SearchService.java): search logic placeholder
-	- [KeywordService.java](src/main/java/com/hkust/goooogle/services/KeywordService.java): keyword query placeholder
+	- [IndexerService.java](src/main/java/com/hkust/goooogle/services/IndexerService.java): token processing, normalization, stemming, and keyword indexing
+	- [SearchService.java](src/main/java/com/hkust/goooogle/services/SearchService.java): TF-IDF-style relevance scoring, cosine similarity, and exact-phrase filtering
+	- [KeywordService.java](src/main/java/com/hkust/goooogle/services/KeywordService.java): keyword search, sorting, pagination, and page-count lookup
 - Data/model layer:
-	[Page.java](src/main/java/com/hkust/goooogle/models/Page.java) and [ExportedPage.java](src/main/java/com/hkust/goooogle/models/ExportedPage.java)
+	[Page.java](src/main/java/com/hkust/goooogle/models/Page.java), [Word.java](src/main/java/com/hkust/goooogle/models/Word.java), [ExportedPage.java](src/main/java/com/hkust/goooogle/models/ExportedPage.java), and [Rankable.java](src/main/java/com/hkust/goooogle/models/Rankable.java)
 - View layer:
 	Thymeleaf templates in [src/main/resources/templates](src/main/resources/templates)
 
@@ -68,6 +78,7 @@ Phase 2 focuses on implementing full search and keyword retrieval functionalitie
 	- `title` (TEXT)
 	- `last_modify_time` (TEXT)
 	- `content_size` (INTEGER)
+	- `full_page` (TEXT)
 - `words`
 	- `id` (INTEGER, primary key, auto increment)
 	- `word` (TEXT, unique)
@@ -76,15 +87,13 @@ Phase 2 focuses on implementing full search and keyword retrieval functionalitie
 	- `word_id` (INTEGER, foreign key -> `words.id`)
 	- `body_count` (TINYINT, default 0)
 	- `title_count` (TINYINT, default 0)
-	- Composite primary key: (`page_id`, `word_id`)
+	- `weighted_count` (FLOAT, default 0)
 - `links`
 	- `parent_page_id` (INTEGER, foreign key -> `pages.id`)
 	- `child_page_id` (INTEGER, foreign key -> `pages.id`)
-	- Composite primary key: (`parent_page_id`, `child_page_id`)
 - `pending_links`
 	- `page_id` (INTEGER, foreign key -> `pages.id`)
 	- `outbound_link` (TEXT)
-	- Composite primary key: (`page_id`, `outbound_link`)
 
 ### Notes
 - SQLite file `goooogle.db` is created in the project root automatically.
