@@ -8,14 +8,21 @@
         </div>
     </form>
     <div>
-        <p class="search-stats" th:if="${resultCount != null}"
-           th:text="'Found ' + ${resultCount} + ' result' + (${resultCount} != 1 ? 's' : '') + ' in ' + ${searchTimeMs} + ' ms'">
+        <p class="search-stats" th:if="${resultCount != null}">
+            <span th:if="${totalCount != null and totalCount > resultCount}">
+                Showing <strong th:text="${resultCount}"></strong> of <strong th:text="${totalCount}"></strong> results 
+                in <span th:text="${searchTimeMs}"></span> ms
+            </span>
+            <span th:if="${totalCount == null or totalCount == resultCount}">
+                Found <strong th:text="${resultCount}"></strong> result<span th:if="${resultCount != 1}">s</span> 
+                in <span th:text="${searchTimeMs}"></span> ms
+            </span>
         </p>
+        
         <div th:if="${results != null}">
             <div th:if="${#lists.isEmpty(results)}">No results found.</div>
             <ul th:if="${!#lists.isEmpty(results)}" class="result-list">
                 <li th:each="result, iterStat : ${results}" class="result-card">
-                    <!-- Left column -->
                     <div class="result-left">
                         <h3 class="result-title">
                             <a th:href="${result.item.url}" target="_blank" th:text="${result.item.title}"></a>
@@ -62,8 +69,6 @@
                             </a>
                         </div>
                     </div>
-
-                    <!-- Right column -->
                     <div class="result-right">
                         <div class="result-meta-item">
                             <span class="result-meta-label">Last modified</span>
@@ -80,6 +85,10 @@
                     </div>
                 </li>
             </ul>
+            <div th:if="${totalCount != null and totalCount > resultCount}" class="more-results-message">
+                <p>Showing only the top <strong th:text="${resultCount}"></strong> results. 
+                   Please refine your search to see more specific results.</p>
+            </div>
         </div>
     </div>
 </section>
