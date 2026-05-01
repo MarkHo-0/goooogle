@@ -18,6 +18,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
@@ -46,9 +47,11 @@ public class PageController {
         return "home";
     }
 
+
 @GetMapping("/search")
 public String search(@RequestParam(value = "q") String query,
                      @RequestParam(value = "direct_search", required = false, defaultValue = "false") Boolean requreDirectSearch,
+                     @RequestParam(value = "limit", required = false, defaultValue = "50") int limit,
                      Model model) {
 
     Matcher requireExactMatch = QuatedStringPattern.matcher(query);
@@ -57,19 +60,53 @@ public String search(@RequestParam(value = "q") String query,
     if (cleanQuery != null && !cleanQuery.isEmpty()) {
         long startTime = System.currentTimeMillis();
 
-        Map<Integer, Float> ranking = searchService.search(cleanQuery, 10);
+        Map<Integer, Float> ranking;
+        int totalCount;
+        boolean hasExactPhrase = requireExactMatch.find();
         
-        while (requireExactMatch.find()) {
+        if (hasExactPhrase) {
+            // For exact match, get all results first
             String exactPhrase = requireExactMatch.group(1);
-            ranking = searchService.excludeNonExactMatch(ranking, exactPhrase);
+            
+            // Get ALL matching pages (no limit)
+            Map<Integer, Float> allRankings = searchService.search(cleanQuery, -1);
+            
+            // Total count before exact filtering
+            int beforeFilterCount = allRankings.size();
+            
+            // Apply exact phrase filter
+            ranking = searchService.excludeNonExactMatch(allRankings, exactPhrase);
+            
+            // Total count after exact filtering (for display)
+            totalCount = ranking.size();
+            
+            // Limit to display limit
+            Map<Integer, Float> limitedRanking = new LinkedHashMap<>();
+            int count = 0;
+            for (Map.Entry<Integer, Float> entry : ranking.entrySet()) {
+                if (count >= limit) break;
+                limitedRanking.put(entry.getKey(), entry.getValue());
+                count++;
+            }
+            ranking = limitedRanking;
+            
+            requireExactMatch.reset();
+            
+            System.out.println("Exact match: " + beforeFilterCount + " -> " + totalCount + " results");
+        } else {
+            // Non-exact match
+            ranking = searchService.search(cleanQuery, limit);
+            totalCount = searchService.getTotalMatchingCount(cleanQuery);
         }
 
         List<Rankable<Page>> pages = searchService.getPages(ranking);
         long elapsedMs = System.currentTimeMillis() - startTime;
 
         model.addAttribute("results", pages);
-        model.addAttribute("resultCount", pages.size());
+        model.addAttribute("resultCount", pages.size());      // Number displayed on page
+        model.addAttribute("totalCount", totalCount);         // Total matching results!
         model.addAttribute("searchTimeMs", elapsedMs);
+        model.addAttribute("displayLimit", limit);
     }
 
     model.addAttribute("pageTitle", "Search");

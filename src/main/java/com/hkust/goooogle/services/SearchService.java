@@ -22,91 +22,146 @@ public class SearchService {
     }
 
     // Main search method
-    public Map<Integer, Float> search(String query, int limit) {
-        if (query == null || query.isBlank()) {
-            return Collections.emptyMap();
+public Map<Integer, Float> search(String query, int limit) {
+    if (query == null || query.isBlank()) {
+        return Collections.emptyMap();
+    }
+    
+    // Build query vector
+    Map<String, Float> queryVector = buildQueryVector(query);
+    if (queryVector.isEmpty()) {
+        return Collections.emptyMap();
+    }
+    
+    // Get total document count
+    int totalDocuments = getTotalDocumentCount();
+    if (totalDocuments == 0) {
+        return Collections.emptyMap();
+    }
+    
+    // Get candidate pages with their weighted_count directly from DB
+    Set<String> queryTerms = queryVector.keySet();
+    String placeholders = String.join(",", Collections.nCopies(queryTerms.size(), "?"));
+    
+    String sql = 
+        "SELECT p.id, w.word, k.weighted_count " +
+        "FROM pages p " +
+        "JOIN keywords k ON p.id = k.page_id " +
+        "JOIN words w ON k.word_id = w.id " +
+        "WHERE w.word IN (" + placeholders + ")";
+    
+    List<Object> params = new ArrayList<>(queryTerms);
+    
+    // Store page weighted counts
+    Map<Integer, Map<String, Float>> pageWeightedCounts = new HashMap<>();
+    Set<Integer> candidatePages = new HashSet<>();
+    
+    db.query(sql, (rs) -> {
+        int pageId = rs.getInt("id");
+        String word = rs.getString("word");
+        float weightedCount = rs.getFloat("weighted_count");
+        
+        candidatePages.add(pageId);
+        pageWeightedCounts.computeIfAbsent(pageId, k -> new HashMap<>())
+                          .put(word, weightedCount);
+    }, params.toArray());
+    
+    if (candidatePages.isEmpty()) {
+        return Collections.emptyMap();
+    }
+    
+    // Calculate similarity scores
+    Map<Integer, Float> similarityScores = new HashMap<>();
+    boolean isSingleTermQuery = (queryVector.size() == 1);
+    
+    if (isSingleTermQuery) {
+        // ===== SINGLE TERM QUERY =====
+        String term = queryVector.keySet().iterator().next();
+        int docFreq = getDocumentFrequency(term);
+        float idf = (float) Math.log((double) totalDocuments / docFreq);
+        
+        // First pass: find max weightedCount
+        float maxWeightedCount = 0f;
+        for (int pid : candidatePages) {
+            Map<String, Float> counts = pageWeightedCounts.getOrDefault(pid, new HashMap<>());
+            float weightedCount = counts.getOrDefault(term, 0f);
+            if (weightedCount > maxWeightedCount) {
+                maxWeightedCount = weightedCount;
+            }
         }
         
-        // Build query vector
-        Map<String, Float> queryVector = buildQueryVector(query);
-        if (queryVector.isEmpty()) {
-            return Collections.emptyMap();
+        // Scale factor to make max weightedCount give 100
+        float scaleFactor = (maxWeightedCount > 0) ? 100f / (maxWeightedCount * idf) : 1f;
+        
+        // Second pass: calculate scores
+        for (int pid : candidatePages) {
+            Map<String, Float> counts = pageWeightedCounts.getOrDefault(pid, new HashMap<>());
+            float weightedCount = counts.getOrDefault(term, 0f);
+            float similarity = Math.min(100, weightedCount * idf * scaleFactor);
+            if (similarity > 0) {
+                similarityScores.put(pid, similarity);
+            }
         }
-        
-        // Get total document count
-        int totalDocuments = getTotalDocumentCount();
-        if (totalDocuments == 0) {
-            return Collections.emptyMap();
-        }
-        
-        // Get candidate pages with their weighted_count directly from DB
-        Set<String> queryTerms = queryVector.keySet();
-        String placeholders = String.join(",", Collections.nCopies(queryTerms.size(), "?"));
-        
-        String sql = 
-            "SELECT p.id, w.word, k.weighted_count " +
-            "FROM pages p " +
-            "JOIN keywords k ON p.id = k.page_id " +
-            "JOIN words w ON k.word_id = w.id " +
-            "WHERE w.word IN (" + placeholders + ")";
-        
-        List<Object> params = new ArrayList<>(queryTerms);
-        
-        // Store page weighted counts
-        Map<Integer, Map<String, Float>> pageWeightedCounts = new HashMap<>();
-        Set<Integer> candidatePages = new HashSet<>();
-        
-        db.query(sql, (rs) -> {
-            int pageId = rs.getInt("id");
-            String word = rs.getString("word");
-            float weightedCount = rs.getFloat("weighted_count");
-            
-            candidatePages.add(pageId);
-            pageWeightedCounts.computeIfAbsent(pageId, k -> new HashMap<>())
-                              .put(word, weightedCount);
-        }, params.toArray());
-        
-        if (candidatePages.isEmpty()) {
-            return Collections.emptyMap();
-        }
-        
-        // Calculate similarity scores
-        Map<Integer, Float> similarityScores = new HashMap<>();
-        boolean isSingleTermQuery = (queryVector.size() == 1);
-        
+    } else {
+        // ===== MULTI-TERM QUERY =====
         for (int pageId : candidatePages) {
             Map<String, Float> docWeightedCounts = pageWeightedCounts.getOrDefault(pageId, new HashMap<>());
-            
-            float similarity;
-            if (isSingleTermQuery) {
-                // Single term: use TF-IDF score
-                String term = queryVector.keySet().iterator().next();
-                float weightedCount = docWeightedCounts.getOrDefault(term, 0f);
-                int docFreq = getDocumentFrequency(term);
-                float idf = (float) Math.log((double) totalDocuments / docFreq);
-                similarity = Math.min(100, weightedCount * idf * 5f);
-            } else {
-                // Multi-term: use cosine similarity
-                similarity = cosineSimilarity(queryVector, docWeightedCounts, totalDocuments);
-                similarity = Math.round(similarity * 10000f) / 100f;
-            }
-            
+            float similarity = cosineSimilarity(queryVector, docWeightedCounts, totalDocuments);
+            similarity = Math.round(similarity * 10000f) / 100f;
             if (similarity > 0) {
                 similarityScores.put(pageId, similarity);
             }
         }
-        
-        // Sort and return top results
-        List<Map.Entry<Integer, Float>> sorted = new ArrayList<>(similarityScores.entrySet());
-        sorted.sort((a, b) -> Float.compare(b.getValue(), a.getValue()));
-        
-        Map<Integer, Float> results = new LinkedHashMap<>();
+    }
+    
+    // Sort results
+    List<Map.Entry<Integer, Float>> sorted = new ArrayList<>(similarityScores.entrySet());
+    sorted.sort((a, b) -> Float.compare(b.getValue(), a.getValue()));
+    
+    // Apply limit: if limit == -1, return ALL results; otherwise, return top N
+    Map<Integer, Float> results = new LinkedHashMap<>();
+    boolean getAllResults = (limit == -1);
+    
+    if (getAllResults) {
+        // Return all sorted results
+        for (Map.Entry<Integer, Float> entry : sorted) {
+            results.put(entry.getKey(), entry.getValue());
+        }
+    } else {
+        // Return top 'limit' results
         for (int i = 0; i < Math.min(limit, sorted.size()); i++) {
             results.put(sorted.get(i).getKey(), sorted.get(i).getValue());
         }
-        
-        return results;
     }
+    
+    return results;
+}
+
+public int getTotalMatchingCount(String query) {
+    if (query == null || query.isBlank()) {
+        return 0;
+    }
+    
+    Map<String, Float> queryVector = buildQueryVector(query);
+    if (queryVector.isEmpty()) {
+        return 0;
+    }
+    
+    Set<String> queryTerms = queryVector.keySet();
+    String placeholders = String.join(",", Collections.nCopies(queryTerms.size(), "?"));
+    
+    String sql = 
+        "SELECT COUNT(DISTINCT p.id) " +
+        "FROM pages p " +
+        "JOIN keywords k ON p.id = k.page_id " +
+        "JOIN words w ON k.word_id = w.id " +
+        "WHERE w.word IN (" + placeholders + ")";
+    
+    List<Object> params = new ArrayList<>(queryTerms);
+    Integer count = db.queryForObject(sql, Integer.class, params.toArray());
+    
+    return count == null ? 0 : count;
+}
     
     // Build query vector using IndexerService's computeWordDistribution
     private Map<String, Float> buildQueryVector(String query) {
