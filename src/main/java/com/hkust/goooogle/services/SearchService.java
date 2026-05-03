@@ -37,37 +37,40 @@ public class SearchService {
         int totalDocuments = indexerService.getStats().getIndexedPageCount();
         if (totalDocuments == 0) return Collections.emptyList(); // Spider 沒有索引過任何頁面，直接返回空結果
         
-        // 構建查詢向量，包含每個關鍵字的正規化IDF值
-        List<QueryKeyword> queryKeywords = buildQueryVector(query, directSearch);
+        // 從查詢中提取關鍵字，每個 QueryKeyword 包含詞已經計算好的 TF-IDF 值
+        List<QueryKeyword> queryKeywords = extractKeywordsFromQuery(query, directSearch);
         if (queryKeywords.isEmpty()) return Collections.emptyList(); // 查詢全部是停用詞或無效詞，直接返回空結果
 
         // 查詢符合的頁面ID列表和各自的關鍵字權重
         String keywordsStr = IntListToString(queryKeywords.stream().map(QueryKeyword::id).toList());
         List<CandidatePage> candidatePages = db.query(sqlFile_FindMatchingPages, CandidatePage.sqlMapper, keywordsStr);
-        
-        System.out.println("Found " + candidatePages.size() + " candidate pages for query: " + query);
+        if (candidatePages.isEmpty()) return Collections.emptyList(); // 沒有任何頁面匹配，直接返回空結果
 
-        if (queryKeywords.size() != 1) { 
+        // 更新每個候選頁面的關鍵字權重為 TF-IDF 值
+        candidatePages.parallelStream().forEach(page -> {
+            for (int i = 0; i < page.keywordWeights().size(); i++) {
+                float df = page.keywordWeights().get(i);
+                float idf = queryKeywords.get(i).idf();
+                page.keywordWeights().set(i, df * idf);
+            }
+        });
+
+        if (queryKeywords.size() > 1) { 
             // 正常情況：多於一個關鍵字，使用 cosine 直接計算相似度分數
-            candidatePages.forEach(p -> {
-                List<Float> queryVector = queryKeywords.stream().map(QueryKeyword::idf).toList();
-                List<Float> docVector = p.keywordWeights();
-                p.setSimilarityScore(cosineSimilarity(queryVector, docVector) * 100);
-            }); 
-        } else {
-            // 特例：只有一個關鍵字，無法計算 cosine，相似度分數直接使用 weighted_count * IDF 
-            int docFreq = queryKeywords.get(0).pageCount();
-            float idf = (float) Math.log((double) totalDocuments / docFreq);
-
-            candidatePages.forEach(p -> {
-                float weightedCount = p.keywordWeights().getFirst();
-                p.setSimilarityScore(weightedCount * idf);
+            List<Float> queryVector = queryKeywords.stream().map(QueryKeyword::tfIdf).toList();
+            candidatePages.forEach(page -> {
+                float similarity = cosineSimilarity(queryVector, page.keywordWeights());
+                page.setSimilarityScore(similarity);
             });
 
-            // 標準化，使最高的對應到100分
+        } else {
+            // 特例：只有一個關鍵字，無法計算 cosine，相似度分數直接使用該關鍵字的權重
+            candidatePages.forEach(page -> page.setSimilarityScore(page.keywordWeights().get(0)));
+
+            // 將分數正規化到 [0, 1] 範圍內
             float maxWeight = candidatePages.stream().map(CandidatePage::similarityScore).max(Float::compareTo).orElse(0f);
             if (maxWeight > 0) {
-                candidatePages.forEach(p -> p.setSimilarityScore(p.similarityScore() / maxWeight * 100));
+                candidatePages.forEach(p -> p.setSimilarityScore(p.similarityScore() / maxWeight));
             }
         }
         
@@ -80,7 +83,7 @@ public class SearchService {
         return rankedPages;
     }
     
-    private List<QueryKeyword> buildQueryVector(String query, boolean directSearch) {
+    private List<QueryKeyword> extractKeywordsFromQuery(String query, boolean directSearch) {
         // 計算查詢中每個詞的詞頻
         Map<String, Long> queryTf = directSearch ? 
             indexerService.computeUnprocessedWordDistribution(query) : 
@@ -91,15 +94,12 @@ public class SearchService {
         String terms = StrListToString(new ArrayList<>(queryTf.keySet()));
         List<QueryKeyword> keywords = db.query(sqlFile_QueryWordsByIds, QueryKeyword.sqlMapper, terms);
 
-        // 計算IDF值
         int totalDocuments = indexerService.getStats().getIndexedPageCount();
-        keywords.forEach(k -> k.setIdf((float) Math.log((double) totalDocuments / k.pageCount())));
-
-        // 正規化IDF值，使其在0到1之間
-        double norm = Math.sqrt(keywords.stream().mapToDouble(k -> k.idf() * k.idf()).sum());
-        if (norm > 0) {
-            keywords.forEach(k -> k.setIdf(k.idf() / (float) norm));
-        }
+        keywords.parallelStream().forEach(k -> {
+            float idf = (float) Math.log((double) totalDocuments / k.pageCount());
+            k.setIdf(idf);
+            k.setTfIdf(queryTf.getOrDefault(k.word(), 0L) * idf);
+        });
 
         return keywords;
     }

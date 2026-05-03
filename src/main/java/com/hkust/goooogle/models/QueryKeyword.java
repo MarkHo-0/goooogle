@@ -8,12 +8,14 @@ public class QueryKeyword {
     private final int id;
     private final int pageCount;
     private float idf;
+    private float tfIdf;
 
     public QueryKeyword(String word, int id, int pageCount) {
         this.word = word;
         this.id = id;
         this.pageCount = pageCount;
-        this.idf = -1.0f; // Placeholder, to be computed later
+        this.idf = 0.0f;
+        this.tfIdf = 0.0f;
     }
 
     public final static RowMapper<QueryKeyword> sqlMapper = (rs, rowNum) -> new QueryKeyword(
@@ -40,5 +42,13 @@ public class QueryKeyword {
 
     public void setIdf(float idf) {
         this.idf = idf;
+    }
+
+    public float tfIdf() {
+        return tfIdf;
+    }
+
+    public void setTfIdf(float tfIdf) {
+        this.tfIdf = tfIdf;
     }
 }
