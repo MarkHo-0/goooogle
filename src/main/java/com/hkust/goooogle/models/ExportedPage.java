@@ -34,21 +34,25 @@ public record ExportedPage(
         sb.append(url).append("\n");
         sb.append(lastModifyTime).append(", ").append(contentByteSize).append(" bytes\n");
 
-        String[] wordsRaw = keywords.split(",");
-        String[] countsRaw = keyword_totalCounts.split(",");
-        if (wordsRaw.length > 0 && wordsRaw.length == countsRaw.length) {
-            sb.append(IntStream.range(0, wordsRaw.length)
-                .mapToObj(i -> wordsRaw[i] + " " + countsRaw[i])
-                .collect(Collectors.joining("; "))
-            ).append("\n");
+        if (keywords != null && keyword_totalCounts != null) {
+            String[] wordsRaw = keywords.split(",");
+            String[] countsRaw = keyword_totalCounts.split(",");
+            if (wordsRaw.length > 0 && wordsRaw.length == countsRaw.length) {
+                sb.append(IntStream.range(0, wordsRaw.length)
+                    .mapToObj(i -> wordsRaw[i] + " " + countsRaw[i])
+                    .collect(Collectors.joining("; "))
+                ).append("\n");
+            }
         }
 
-        String[] childIdxsRaw = childLinkIdxs.split(",");
-        for (String idxStr : childIdxsRaw) {
-            int idx = Integer.parseInt(idxStr);
-            ExportedPage childPage = allPages.stream().filter(p -> p.id() == idx).findFirst().orElse(null);
-            if (childPage == null) continue;
-            sb.append(childPage.url()).append("\n");
+        if (childLinkIdxs != null) {
+            String[] childIdxsRaw = childLinkIdxs.split(",");
+            for (String idxStr : childIdxsRaw) {
+                int idx = Integer.parseInt(idxStr);
+                ExportedPage childPage = allPages.stream().filter(p -> p.id() == idx).findFirst().orElse(null);
+                if (childPage == null) continue;
+                sb.append(childPage.url()).append("\n");
+            }
         }
 
         return sb.append("\n").toString();
