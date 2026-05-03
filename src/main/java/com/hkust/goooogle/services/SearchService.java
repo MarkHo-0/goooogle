@@ -1,7 +1,9 @@
 package com.hkust.goooogle.services;
 
 import com.hkust.goooogle.annotations.LoadSql;
+import com.hkust.goooogle.models.CandidatePage;
 import com.hkust.goooogle.models.Page;
+import com.hkust.goooogle.models.QueryKeyword;
 import com.hkust.goooogle.models.Rankable;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -21,238 +23,111 @@ public class SearchService {
         this.indexerService = indexerService;
     }
 
-    // Main search method
-public Map<Integer, Float> search(String query, int limit) {
-    if (query == null || query.isBlank()) {
-        return Collections.emptyMap();
-    }
-    
-    // Build query vector
-    Map<String, Float> queryVector = buildQueryVector(query);
-    if (queryVector.isEmpty()) {
-        return Collections.emptyMap();
-    }
-    
-    // Get total document count
-    int totalDocuments = getTotalDocumentCount();
-    if (totalDocuments == 0) {
-        return Collections.emptyMap();
-    }
-    
-    // Get candidate pages with their weighted_count directly from DB
-    Set<String> queryTerms = queryVector.keySet();
-    String placeholders = String.join(",", Collections.nCopies(queryTerms.size(), "?"));
-    
-    String sql = 
-        "SELECT p.id, w.word, k.weighted_count " +
-        "FROM pages p " +
-        "JOIN keywords k ON p.id = k.page_id " +
-        "JOIN words w ON k.word_id = w.id " +
-        "WHERE w.word IN (" + placeholders + ")";
-    
-    List<Object> params = new ArrayList<>(queryTerms);
-    
-    // Store page weighted counts
-    Map<Integer, Map<String, Float>> pageWeightedCounts = new HashMap<>();
-    Set<Integer> candidatePages = new HashSet<>();
-    
-    db.query(sql, (rs) -> {
-        int pageId = rs.getInt("id");
-        String word = rs.getString("word");
-        float weightedCount = rs.getFloat("weighted_count");
-        
-        candidatePages.add(pageId);
-        pageWeightedCounts.computeIfAbsent(pageId, k -> new HashMap<>())
-                          .put(word, weightedCount);
-    }, params.toArray());
-    
-    if (candidatePages.isEmpty()) {
-        return Collections.emptyMap();
-    }
-    
-    // Calculate similarity scores
-    Map<Integer, Float> similarityScores = new HashMap<>();
-    boolean isSingleTermQuery = (queryVector.size() == 1);
-    
-    if (isSingleTermQuery) {
-        // ===== SINGLE TERM QUERY =====
-        String term = queryVector.keySet().iterator().next();
-        int docFreq = getDocumentFrequency(term);
-        float idf = (float) Math.log((double) totalDocuments / docFreq);
-        
-        // First pass: find max weightedCount
-        float maxWeightedCount = 0f;
-        for (int pid : candidatePages) {
-            Map<String, Float> counts = pageWeightedCounts.getOrDefault(pid, new HashMap<>());
-            float weightedCount = counts.getOrDefault(term, 0f);
-            if (weightedCount > maxWeightedCount) {
-                maxWeightedCount = weightedCount;
-            }
-        }
-        
-        // Scale factor to make max weightedCount give 100
-        float scaleFactor = (maxWeightedCount > 0) ? 100f / (maxWeightedCount * idf) : 1f;
-        
-        // Second pass: calculate scores
-        for (int pid : candidatePages) {
-            Map<String, Float> counts = pageWeightedCounts.getOrDefault(pid, new HashMap<>());
-            float weightedCount = counts.getOrDefault(term, 0f);
-            float similarity = Math.min(100, weightedCount * idf * scaleFactor);
-            if (similarity > 0) {
-                similarityScores.put(pid, similarity);
-            }
-        }
-    } else {
-        // ===== MULTI-TERM QUERY =====
-        for (int pageId : candidatePages) {
-            Map<String, Float> docWeightedCounts = pageWeightedCounts.getOrDefault(pageId, new HashMap<>());
-            float similarity = cosineSimilarity(queryVector, docWeightedCounts, totalDocuments);
-            similarity = Math.round(similarity * 10000f) / 100f;
-            if (similarity > 0) {
-                similarityScores.put(pageId, similarity);
-            }
-        }
-    }
-    
-    // Sort results
-    List<Map.Entry<Integer, Float>> sorted = new ArrayList<>(similarityScores.entrySet());
-    sorted.sort((a, b) -> Float.compare(b.getValue(), a.getValue()));
-    
-    // Apply limit: if limit == -1, return ALL results; otherwise, return top N
-    Map<Integer, Float> results = new LinkedHashMap<>();
-    boolean getAllResults = (limit == -1);
-    
-    if (getAllResults) {
-        // Return all sorted results
-        for (Map.Entry<Integer, Float> entry : sorted) {
-            results.put(entry.getKey(), entry.getValue());
-        }
-    } else {
-        // Return top 'limit' results
-        for (int i = 0; i < Math.min(limit, sorted.size()); i++) {
-            results.put(sorted.get(i).getKey(), sorted.get(i).getValue());
-        }
-    }
-    
-    return results;
-}
+    @LoadSql("sql/query_words_by_ids.sql")
+    private String sqlFile_QueryWordsByIds;
 
-public int getTotalMatchingCount(String query) {
-    if (query == null || query.isBlank()) {
-        return 0;
-    }
-    
-    Map<String, Float> queryVector = buildQueryVector(query);
-    if (queryVector.isEmpty()) {
-        return 0;
-    }
-    
-    Set<String> queryTerms = queryVector.keySet();
-    String placeholders = String.join(",", Collections.nCopies(queryTerms.size(), "?"));
-    
-    String sql = 
-        "SELECT COUNT(DISTINCT p.id) " +
-        "FROM pages p " +
-        "JOIN keywords k ON p.id = k.page_id " +
-        "JOIN words w ON k.word_id = w.id " +
-        "WHERE w.word IN (" + placeholders + ")";
-    
-    List<Object> params = new ArrayList<>(queryTerms);
-    Integer count = db.queryForObject(sql, Integer.class, params.toArray());
-    
-    return count == null ? 0 : count;
-}
-    
-    // Build query vector using IndexerService's computeWordDistribution
-    private Map<String, Float> buildQueryVector(String query) {
-        Map<String, Long> queryTf = indexerService.computeWordDistribution(query);
+    @LoadSql("sql/find_matching_pages.sql")
+    private String sqlFile_FindMatchingPages;
+
+    // directSearch: 不對 query 進行任何處理，用於關鍵詞精確匹配的搜尋
+    // 但這不同於 exactMatch (是在最後過濾階段對全文進行匹配)
+    public List<Rankable<Integer>> search(String query, boolean directSearch) {
+        if (query.isBlank()) return Collections.emptyList(); // 空查詢直接返回空結果
+
+        int totalDocuments = indexerService.getStats().getIndexedPageCount();
+        if (totalDocuments == 0) return Collections.emptyList(); // Spider 沒有索引過任何頁面，直接返回空結果
         
-        int totalDocuments = getTotalDocumentCount();
-        Map<String, Float> queryTfIdf = new HashMap<>();
+        // 構建查詢向量，包含每個關鍵字的正規化IDF值
+        List<QueryKeyword> queryKeywords = buildQueryVector(query, directSearch);
+        if (queryKeywords.isEmpty()) return Collections.emptyList(); // 查詢全部是停用詞或無效詞，直接返回空結果
+
+        // 查詢符合的頁面ID列表和各自的關鍵字權重
+        String keywordsStr = IntListToString(queryKeywords.stream().map(QueryKeyword::id).toList());
+        List<CandidatePage> candidatePages = db.query(sqlFile_FindMatchingPages, CandidatePage.sqlMapper, keywordsStr);
         
-        for (Map.Entry<String, Long> entry : queryTf.entrySet()) {
-            String term = entry.getKey();
-            long tf = entry.getValue();
-            int docFreq = getDocumentFrequency(term);
-            if (docFreq > 0) {
-                float idf = (float) Math.log((double) totalDocuments / docFreq);
-                queryTfIdf.put(term, (float) tf * idf);
+        System.out.println("Found " + candidatePages.size() + " candidate pages for query: " + query);
+
+        if (queryKeywords.size() != 1) { 
+            // 正常情況：多於一個關鍵字，使用 cosine 直接計算相似度分數
+            candidatePages.forEach(p -> {
+                List<Float> queryVector = queryKeywords.stream().map(QueryKeyword::idf).toList();
+                List<Float> docVector = p.keywordWeights();
+                p.setSimilarityScore(cosineSimilarity(queryVector, docVector) * 100);
+            }); 
+        } else {
+            // 特例：只有一個關鍵字，無法計算 cosine，相似度分數直接使用 weighted_count * IDF 
+            int docFreq = queryKeywords.get(0).pageCount();
+            float idf = (float) Math.log((double) totalDocuments / docFreq);
+
+            candidatePages.forEach(p -> {
+                float weightedCount = p.keywordWeights().getFirst();
+                p.setSimilarityScore(weightedCount * idf);
+            });
+
+            // 標準化，使最高的對應到100分
+            float maxWeight = candidatePages.stream().map(CandidatePage::similarityScore).max(Float::compareTo).orElse(0f);
+            if (maxWeight > 0) {
+                candidatePages.forEach(p -> p.setSimilarityScore(p.similarityScore() / maxWeight * 100));
             }
         }
         
-        // Normalize query vector
-        float norm = 0f;
-        for (float weight : queryTfIdf.values()) {
-            norm += weight * weight;
-        }
-        norm = (float) Math.sqrt(norm);
+        // 根據相似度分數排序，返回所有候選頁面ID和分數
+        List<Rankable<Integer>> rankedPages = candidatePages.stream()
+            .sorted(Comparator.comparing(CandidatePage::similarityScore).reversed())
+            .map(p -> new Rankable<>(p.pageid(), p.similarityScore()))
+            .toList();
+        
+        return rankedPages;
+    }
+    
+    private List<QueryKeyword> buildQueryVector(String query, boolean directSearch) {
+        // 計算查詢中每個詞的詞頻
+        Map<String, Long> queryTf = directSearch ? 
+            indexerService.computeUnprocessedWordDistribution(query) : 
+            indexerService.computeWordDistribution(query);
+        if (queryTf.isEmpty()) return Collections.emptyList();
+
+        // 查詢關鍵字的ID和文檔頻率
+        String terms = StrListToString(new ArrayList<>(queryTf.keySet()));
+        List<QueryKeyword> keywords = db.query(sqlFile_QueryWordsByIds, QueryKeyword.sqlMapper, terms);
+
+        // 計算IDF值
+        int totalDocuments = indexerService.getStats().getIndexedPageCount();
+        keywords.forEach(k -> k.setIdf((float) Math.log((double) totalDocuments / k.pageCount())));
+
+        // 正規化IDF值，使其在0到1之間
+        double norm = Math.sqrt(keywords.stream().mapToDouble(k -> k.idf() * k.idf()).sum());
         if (norm > 0) {
-            for (String term : queryTfIdf.keySet()) {
-                queryTfIdf.put(term, queryTfIdf.get(term) / norm);
-            }
-        }
-        
-        return queryTfIdf;
-    }
-    
-    // Cosine similarity using pre-calculated weighted_count from database
-    private float cosineSimilarity(Map<String, Float> queryVector, 
-                                    Map<String, Float> docWeightedCounts,
-                                    int totalDocuments) {
-        float dotProduct = 0f;
-        float queryNorm = 0f;
-        float docNorm = 0f;
-        
-        // Calculate dot product and query norm
-        for (Map.Entry<String, Float> entry : queryVector.entrySet()) {
-            String term = entry.getKey();
-            float queryWeight = entry.getValue();
-            float docWeightedCount = docWeightedCounts.getOrDefault(term, 0f);
-            
-            int docFreq = getDocumentFrequency(term);
-            float idf = (docFreq > 0) ? (float) Math.log((double) totalDocuments / docFreq) : 1f;
-            
-            float docTfIdf = docWeightedCount * idf;
-            
-            dotProduct += queryWeight * docTfIdf;
-            queryNorm += queryWeight * queryWeight;
-        }
-        queryNorm = (float) Math.sqrt(queryNorm);
-        
-        // Calculate document norm
-        for (Map.Entry<String, Float> entry : docWeightedCounts.entrySet()) {
-            String term = entry.getKey();
-            if (queryVector.containsKey(term)) {
-                int docFreq = getDocumentFrequency(term);
-                float idf = (docFreq > 0) ? (float) Math.log((double) totalDocuments / docFreq) : 1f;
-                float docTfIdf = entry.getValue() * idf;
-                docNorm += docTfIdf * docTfIdf;
-            }
-        }
-        docNorm = (float) Math.sqrt(docNorm);
-        
-        if (queryNorm == 0 || docNorm == 0) return 0f;
-        return dotProduct / (queryNorm * docNorm);
-    }
-    
-    private int getTotalDocumentCount() {
-        Integer count = db.queryForObject("SELECT COUNT(*) FROM pages", Integer.class);
-        return count == null ? 0 : count;
-    }
-    
-    private int getDocumentFrequency(String term) {
-        String sql = "SELECT COUNT(DISTINCT k.page_id) FROM keywords k " +
-                     "JOIN words w ON k.word_id = w.id WHERE w.word = ?";
-        Integer freq = db.queryForObject(sql, Integer.class, term);
-        return freq == null ? 0 : freq;
-    }
-    
-    public Map<Integer, Float> excludeNonExactMatch(Map<Integer, Float> ranking, String query) {
-        if (ranking.isEmpty()) {
-            return new LinkedHashMap<>();
+            keywords.forEach(k -> k.setIdf(k.idf() / (float) norm));
         }
 
-        List<Integer> pageIds = new ArrayList<>(ranking.keySet());
+        return keywords;
+    }
+    
+    private float cosineSimilarity(List<Float> queryVector, List<Float> docVector) {
+        int size = Math.min(queryVector.size(), docVector.size());
+        if (size == 0) return 0f;
+
+        double dotProduct = 0.0;
+        double queryNorm = 0.0;
+        double docNorm = 0.0;
+
+        for (int i = 0; i < size; i++) {
+            double q = queryVector.get(i);
+            double d = docVector.get(i);
+            dotProduct += q * d;
+            queryNorm += q * q;
+            docNorm += d * d;
+        }
+
+        if (queryNorm == 0.0 || docNorm == 0.0) return 0f;
+        return (float) (dotProduct / (Math.sqrt(queryNorm) * Math.sqrt(docNorm)));
+    }
+    
+    public List<Rankable<Integer>> excludeNonExactMatch(List<Rankable<Integer>> ranking, String query) {
+        if (ranking.isEmpty()) return new ArrayList<>();
+
+        List<Integer> pageIds = new ArrayList<>(ranking.stream().map(Rankable::item).toList());
 
         String normalised = query.trim().toLowerCase().replaceAll("\\s+", " ");
         String escapedQuery = normalised
@@ -276,12 +151,10 @@ public int getTotalMatchingCount(String query) {
             params.toArray()
         ));
 
-        Map<Integer, Float> exactMatches = new LinkedHashMap<>();
-        for (Integer pageId : pageIds) {
-            if (matchingIds.contains(pageId)) {
-                exactMatches.put(pageId, ranking.get(pageId));
-            }
-        }
+        // 只保留那些頁面ID在 matchingIds 中的結果，並保持原有的排名順序
+        List<Rankable<Integer>> exactMatches = ranking.stream()
+            .filter(r -> matchingIds.contains(r.item()))
+            .toList();
 
         return exactMatches;
     }
@@ -289,16 +162,16 @@ public int getTotalMatchingCount(String query) {
     @LoadSql("sql/get_pages_by_ids.sql")
     private String sqlFile_GetPagesByIds;
     
-    public List<Rankable<Page>> getPages(Map<Integer, Float> ranking) {
+    public List<Rankable<Page>> getPages(List<Rankable<Integer>> ranking) {
         if (ranking.isEmpty()) {
             return Collections.emptyList();
         }
 
-        String pageIds = mapKeysToString(ranking.keySet());
+        String pageIds = IntListToString(ranking.stream().map(Rankable::item).toList());
 
         try {
             List<Page> pages = db.query(sqlFile_GetPagesByIds, Page.sqlMapper, pageIds, 5);
-            Iterator<Float> scores = ranking.values().iterator();
+            Iterator<Double> scores = ranking.stream().map(Rankable::similarityScore).iterator();
             return pages.stream().map(page -> new Rankable<>(page, scores.next())).toList();
         } catch (Exception e) {
             System.out.println("Failed to fetch page details: " + e.getMessage());
@@ -306,12 +179,24 @@ public int getTotalMatchingCount(String query) {
         }
     }
 
-    private static String mapKeysToString(Set<Integer> keys) {
+    private static String IntListToString(List<Integer> keys) {
         StringBuilder sb = new StringBuilder("[");
         boolean first = true;
         for (Integer id : keys) {
             if (!first) sb.append(",");
             sb.append(id);
+            first = false;
+        }
+        sb.append("]");
+        return sb.toString();
+    }
+
+    private static String StrListToString(List<String> keys) {
+        StringBuilder sb = new StringBuilder("[");
+        boolean first = true;
+        for (String key : keys) {
+            if (!first) sb.append(",");
+            sb.append(String.format("\"%s\"", key));
             first = false;
         }
         sb.append("]");

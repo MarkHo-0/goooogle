@@ -6,7 +6,6 @@ import java.sql.SQLException;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
-import java.util.Locale;
 import java.util.stream.Collectors;
 
 public record Page(
@@ -14,7 +13,7 @@ public record Page(
     String title, 
     ZonedDateTime lastModifyTime, 
     int contentSizeInBytes, 
-    List<Keyword> topNKeywords,
+    List<PageKeyword> topNKeywords,
     List<RefPage> childPages, 
     List<RefPage> parentPages
 ) {
@@ -27,7 +26,7 @@ public record Page(
                 rs.getString("title"),
                 ZonedDateTime.parse(rs.getString("last_modify_time"), DateTimeFormatter.RFC_1123_DATE_TIME),
                 rs.getInt("content_size"),
-                JSON.readerForListOf(Keyword.class).readValue(rs.getString("top_N_Keywords")),
+                JSON.readerForListOf(PageKeyword.class).readValue(rs.getString("top_N_Keywords")),
                 JSON.readerForListOf(RefPage.class).readValue(rs.getString("child_pages")),
                 JSON.readerForListOf(RefPage.class).readValue(rs.getString("parent_pages"))
             );
@@ -37,7 +36,7 @@ public record Page(
     };
 
     public String buildSearchQueryForTopKeywords() {
-        String kws = topNKeywords.stream().map(Keyword::word).collect(Collectors.joining("+"));
+        String kws = topNKeywords.stream().map(PageKeyword::word).collect(Collectors.joining("+"));
         return String.format("/search?q=%s&direct_search=true", kws);
     }
 

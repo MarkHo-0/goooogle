@@ -76,6 +76,14 @@ public class IndexerService {
             .collect(Collectors.groupingBy(Function.identity(), Collectors.counting()));
     }
 
+    public Map<String, Long> computeUnprocessedWordDistribution(String content) {
+        if (content.isBlank()) return Collections.emptyMap();
+
+        return wordSplitPattern.splitAsStream(content.toLowerCase().trim())
+            .filter(w -> !w.isEmpty())
+            .collect(Collectors.groupingBy(Function.identity(), Collectors.counting()));
+    }
+
     public static String removeTrailingPunctuation(String input) {
         if (input.isEmpty()) return input;
         int end = input.length();

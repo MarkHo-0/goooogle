@@ -18,9 +18,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -59,47 +57,25 @@ public String search(@RequestParam(value = "q") String query,
 
     if (cleanQuery != null && !cleanQuery.isEmpty()) {
         long startTime = System.currentTimeMillis();
-
-        Map<Integer, Float> ranking;
-        int totalCount;
-        boolean hasExactPhrase = requireExactMatch.find();
         
-        if (hasExactPhrase) {
-            // For exact match, get all results first
+        // 核心搜索邏輯，返回頁面ID和相似度分數的排名列表
+        List<Rankable<Integer>> ranking = searchService.search(cleanQuery, requreDirectSearch);
+
+        // 過濾掉不包含精確短語的結果
+        while (requireExactMatch.find()) {
             String exactPhrase = requireExactMatch.group(1);
-            
-            // Get ALL matching pages (no limit)
-            Map<Integer, Float> allRankings = searchService.search(cleanQuery, -1);
-            
-            // Total count before exact filtering
-            int beforeFilterCount = allRankings.size();
-            
-            // Apply exact phrase filter
-            ranking = searchService.excludeNonExactMatch(allRankings, exactPhrase);
-            
-            // Total count after exact filtering (for display)
-            totalCount = ranking.size();
-            
-            // Limit to display limit
-            Map<Integer, Float> limitedRanking = new LinkedHashMap<>();
-            int count = 0;
-            for (Map.Entry<Integer, Float> entry : ranking.entrySet()) {
-                if (count >= limit) break;
-                limitedRanking.put(entry.getKey(), entry.getValue());
-                count++;
-            }
-            ranking = limitedRanking;
-            
-            requireExactMatch.reset();
-            
-            System.out.println("Exact match: " + beforeFilterCount + " -> " + totalCount + " results");
-        } else {
-            // Non-exact match
-            ranking = searchService.search(cleanQuery, limit);
-            totalCount = searchService.getTotalMatchingCount(cleanQuery);
+            ranking = searchService.excludeNonExactMatch(ranking, exactPhrase);
         }
 
+        // 總結果數量
+        int totalCount = ranking.size();
+
+        // 只取前 n 個結果
+        ranking = ranking.stream().limit(limit).toList();
+
+        // 獲取頁面詳細信息
         List<Rankable<Page>> pages = searchService.getPages(ranking);
+
         long elapsedMs = System.currentTimeMillis() - startTime;
 
         model.addAttribute("results", pages);

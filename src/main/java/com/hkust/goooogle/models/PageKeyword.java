@@ -1,6 +1,6 @@
 package com.hkust.goooogle.models;
 
-public record Keyword(
+public record PageKeyword(
     String word,
     int bodyCount,
     int titleCount
