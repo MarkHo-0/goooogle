@@ -141,7 +141,7 @@ public class SearchService {
             if (i > 0) sql.append(",");
             sql.append("?");
         }
-        sql.append(") AND LOWER(full_page) LIKE ? ESCAPE '\\'");
+        sql.append(") AND full_page LIKE ? ESCAPE '\\'");
 
         List<Object> params = new ArrayList<>(pageIds);
         params.add(likePattern);
