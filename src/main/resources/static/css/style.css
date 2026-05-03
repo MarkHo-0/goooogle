@@ -28,7 +28,6 @@ nav > a:hover {
 
 main {
     display: flex;
-    align-items: center;
     flex: 1;
     padding: 2em 0;
 }
