@@ -279,7 +279,6 @@ section {
 
 .keywords-table th {
     padding: 1em;
-    text-align: left;
     font-weight: bold;
     color: #333;
 }
@@ -295,7 +294,6 @@ section {
 
 .index-col {
     width: 80px;
-    text-align: center !important;
 }
 
 .word-col {
@@ -304,11 +302,10 @@ section {
 
 .count-col {
     width: 120px;
-    text-align: center !important;
 }
 
 .pages-col {
-    flex: 1;
+    text-align: left;
     min-width: 300px;
 }
 
