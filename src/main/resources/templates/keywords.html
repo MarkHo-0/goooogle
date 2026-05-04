@@ -33,7 +33,7 @@
                 <tr th:each="word, iter : ${words}">
                     <td class="index-col" th:text="${pagination.offset + iter.count}"></td>
                     <td class="word-col">
-                        <a th:href="@{/search(q=${word.word()})}" th:text="${word.word()}" class="word-link"></a>
+                        <a th:href="@{/search(q=${word.word()}, direct_search=true)}" th:text="${word.word()}" class="word-link"></a>
                     </td>
                     <td class="count-col" th:text="${word.totalCount()}"></td>
                     <td class="pages-col">
