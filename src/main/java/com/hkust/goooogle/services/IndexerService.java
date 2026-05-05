@@ -73,7 +73,7 @@ public class IndexerService {
             .filter(w -> !stopWords.contains(w))
             .map(w -> stemmer.stripAffixes(w))
             .filter(w -> !w.isEmpty())
-            .collect(Collectors.groupingBy(Function.identity(), Collectors.counting()));
+            .collect(Collectors.groupingBy(Function.identity(), LinkedHashMap::new, Collectors.counting()));
     }
 
     public Map<String, Long> computeUnprocessedWordDistribution(String content) {
