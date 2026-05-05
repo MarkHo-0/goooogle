@@ -43,6 +43,7 @@ public class SearchService {
 
         // 查詢符合的頁面ID列表和各自的關鍵字權重
         String keywordsStr = IntListToString(queryKeywords.stream().map(QueryKeyword::id).toList());
+        System.out.println("New search: [" + String.join(", ", queryKeywords.stream().map(QueryKeyword::word).toList()) + "]");
         List<CandidatePage> candidatePages = db.query(sqlFile_FindMatchingPages, CandidatePage.sqlMapper, keywordsStr);
         if (candidatePages.isEmpty()) return Collections.emptyList(); // 沒有任何頁面匹配，直接返回空結果
 
