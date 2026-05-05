@@ -22,7 +22,7 @@ Goooogle is a university course project with the final goal of building a comple
 # macOS / Linux
 ./mvnw spring-boot:run
 ```
-5. Open your browser and navigate to `localhost:8080`
+5. Open your browser and navigate to `localhost:8443`
 
 ## 3. Feature Highlights and User Guides
 
