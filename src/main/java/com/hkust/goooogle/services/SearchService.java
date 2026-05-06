@@ -3,6 +3,7 @@ package com.hkust.goooogle.services;
 import com.hkust.goooogle.annotations.LoadSql;
 import com.hkust.goooogle.models.CandidatePage;
 import com.hkust.goooogle.models.Page;
+import com.hkust.goooogle.models.PageKeyword;
 import com.hkust.goooogle.models.QueryKeyword;
 import com.hkust.goooogle.models.Rankable;
 
@@ -47,12 +48,12 @@ public class SearchService {
         List<CandidatePage> candidatePages = db.query(sqlFile_FindMatchingPages, CandidatePage.sqlMapper, keywordsStr);
         if (candidatePages.isEmpty()) return Collections.emptyList(); // 沒有任何頁面匹配，直接返回空結果
 
-        // 更新每個候選頁面的關鍵字權重為 TF-IDF 值
+        // 計算每個候選頁面關鍵字的 TF-IDF 值
         candidatePages.parallelStream().forEach(page -> {
-            for (int i = 0; i < page.keywordWeights().size(); i++) {
-                float df = page.keywordWeights().get(i);
+            for (int i = 0; i < page.matchedKeywords().size(); i++) {
+                float tf = page.matchedKeywords().get(i).totalCount();
                 float idf = queryKeywords.get(i).idf();
-                page.keywordWeights().set(i, df * idf);
+                page.setKeywordWeight(i, tf * idf);
             }
         });
 
@@ -74,6 +75,19 @@ public class SearchService {
                 candidatePages.forEach(p -> p.setSimilarityScore(p.similarityScore() / maxWeight));
             }
         }
+
+        // 計算標題加權分數，並將其與相似度分數結合
+        candidatePages.parallelStream().forEach(page -> {
+            float title_bonus = 0f;
+            for (int i = 0; i < page.matchedKeywords().size(); i++) {
+                float tf = page.matchedKeywords().get(i).titleCount();
+                float idf = queryKeywords.get(i).idf();
+                title_bonus += tf * idf;
+            }
+            float bounded_bonus = (float) (1 / (1 + Math.exp(-1 * title_bonus)));
+            float final_score = (page.similarityScore() + bounded_bonus) / 2;
+            page.setSimilarityScore(final_score);
+        });
         
         // 根據相似度分數排序，返回所有候選頁面ID和分數
         List<Rankable<Integer>> rankedPages = candidatePages.stream()

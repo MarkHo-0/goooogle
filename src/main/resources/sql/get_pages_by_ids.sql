@@ -26,7 +26,8 @@ page_kw AS (
         w.word,
         k.body_count,
         k.title_count,
-        ROW_NUMBER() OVER (PARTITION BY i.page_id ORDER BY k.weighted_count DESC) AS rn
+        k.total_count,
+        ROW_NUMBER() OVER (PARTITION BY i.page_id ORDER BY k.total_count DESC) AS rn
     FROM keywords k
     JOIN words w on w.id = k.word_id
     JOIN input_ids i ON i.page_id = k.page_id
@@ -40,7 +41,8 @@ ranked_page_kw AS (
             json_object(
                 'word', word,
                 'bodyCount', body_count,
-                'titleCount', title_count
+                'titleCount', title_count,
+                'totalCount', total_count
             )
         ) AS top_N_Keywords
     FROM page_kw

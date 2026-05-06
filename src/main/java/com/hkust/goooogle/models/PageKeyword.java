@@ -3,9 +3,7 @@ package com.hkust.goooogle.models;
 public record PageKeyword(
     String word,
     int bodyCount,
-    int titleCount
+    int titleCount,
+    int totalCount
 ) {
-    public int totalCount() {
-        return bodyCount + titleCount;
-    }
 }

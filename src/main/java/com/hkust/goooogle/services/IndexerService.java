@@ -111,7 +111,7 @@ public class IndexerService {
     }
 
     private static final String INSERT_WORDS_SQL = "INSERT OR IGNORE INTO words(word) VALUES (?)";
-    private static final String INSERT_KEYWORDS_SQL = "INSERT OR REPLACE INTO keywords(page_id, word_id, body_count, title_count, weighted_count) " +
+    private static final String INSERT_KEYWORDS_SQL = "INSERT OR REPLACE INTO keywords(page_id, word_id, body_count, title_count, total_count) " +
                                                       "SELECT ?, id, ?, ?, ? FROM words WHERE word = ?";
     private void storeWordsAndKeywords(int pageId, Map<String, Long> bodyWords, Map<String, Long> titleWords, int bodyLength, int titleLength) {
         if (bodyWords.isEmpty() && titleWords.isEmpty()) return;
@@ -129,9 +129,6 @@ public class IndexerService {
             boolean originalAutoCommit = conn.getAutoCommit();
             conn.setAutoCommit(false);
 
-            int bodyWordsLength = bodyWords.size();
-            int titleWordsLength = titleWords.size();
-
             // 批量裝載新單詞
             for (String word : allWords) {
                 psWords.setString(1, word);
@@ -140,19 +137,15 @@ public class IndexerService {
             psWords.executeBatch();
 
             // 批量裝載關鍵詞
-            float beta = 100.0f;
-            float wt = (beta * titleWordsLength) / (beta * titleWordsLength + bodyWordsLength);
-            float invWt = 1.0f - wt;
-            
             for (String word : allWords) {
                 long bodyCount = bodyWords.getOrDefault(word, 0L);
                 long titleCount = titleWords.getOrDefault(word, 0L);
-                float weightedCount = wt * titleCount + invWt * bodyCount;
+                long totalCount = bodyCount + titleCount;
                 
                 psKeywords.setInt(1, pageId);
                 psKeywords.setLong(2, bodyCount);
                 psKeywords.setLong(3, titleCount);
-                psKeywords.setFloat(4, weightedCount);
+                psKeywords.setLong(4, totalCount);
                 psKeywords.setString(5, word);
                 psKeywords.addBatch();
             }

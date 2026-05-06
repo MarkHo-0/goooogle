@@ -87,7 +87,7 @@ Goooogle is a university course project with the final goal of building a comple
 	- `word_id` (INTEGER, foreign key -> `words.id`)
 	- `body_count` (TINYINT, default 0)
 	- `title_count` (TINYINT, default 0)
-	- `weighted_count` (FLOAT, default 0)
+	- `total_count` (TINYINT, default 0)
 - `links`
 	- `parent_page_id` (INTEGER, foreign key -> `pages.id`)
 	- `child_page_id` (INTEGER, foreign key -> `pages.id`)

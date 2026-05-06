@@ -6,9 +6,17 @@ WITH input_word_ids AS (
 )
 SELECT
     k.page_id,
-	json_group_array(k.weighted_count ORDER BY i.ord) AS weighted_counts
+	json_group_array(
+        json_object(
+            'word', w.word,
+            'bodyCount', k.body_count,
+            'titleCount', k.title_count,
+            'totalCount', k.total_count
+        ) ORDER BY i.ord
+    ) AS keyword_weights
 FROM keywords k
+JOIN words w ON k.word_id = w.id
 JOIN input_word_ids i ON i.word_id = k.word_id
-GROUP BY page_id
+GROUP BY k.page_id
 HAVING COUNT(*) = (SELECT COUNT(*) FROM input_word_ids)
-ORDER BY page_id;
+ORDER BY k.page_id;

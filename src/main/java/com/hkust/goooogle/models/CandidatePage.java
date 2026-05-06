@@ -1,6 +1,8 @@
 package com.hkust.goooogle.models;
 
 import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 import org.springframework.jdbc.core.RowMapper;
@@ -11,25 +13,35 @@ public class CandidatePage {
     private static final ObjectMapper JSON = new ObjectMapper();
 
     private final int pageid;
+    private final List<PageKeyword> matchedKeywords;
     private final List<Float> keywordWeights;
     private float similarityScore;
 
-    public CandidatePage(int pageid, List<Float> keywordWeights, float similarityScore) {
+    public CandidatePage(int pageid, List<PageKeyword> matchedKeywords) {
         this.pageid = pageid;
-        this.keywordWeights = keywordWeights;
-        this.similarityScore = similarityScore;
+        this.matchedKeywords = matchedKeywords;
+        this.keywordWeights = new ArrayList<>(Collections.nCopies(matchedKeywords.size(), -1.0f));
+        this.similarityScore = -1.0f;
     }
 
     public int pageid() {
         return pageid;
     }
 
-    public List<Float> keywordWeights() {
-        return keywordWeights;
+    public List<PageKeyword> matchedKeywords() {
+        return matchedKeywords;
     }
 
     public float similarityScore() {
         return similarityScore;
+    }
+
+    public List<Float> keywordWeights() {
+        return keywordWeights;
+    }
+
+    public void setKeywordWeight(int index, float weight) {
+        this.keywordWeights.set(index, weight);
     }
 
     public void setSimilarityScore(float similarityScore) {
@@ -40,8 +52,7 @@ public class CandidatePage {
         try {
             return new CandidatePage(
                 rs.getInt("page_id"),
-                JSON.readerForListOf(Float.class).readValue(rs.getString("weighted_counts")),
-                -1.0f
+                JSON.readerForListOf(PageKeyword.class).readValue(rs.getString("keyword_weights"))
             );
         } catch (Exception ex) {
             throw new SQLException("Failed to map row to CandidatePage", ex);

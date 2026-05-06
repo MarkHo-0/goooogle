@@ -11,10 +11,10 @@ WITH
     ),
     -- 處理關鍵字 - 需按總出現次數排序，取前 N 個
     ranked_keywords AS (
-        SELECT k.page_id, w.word, (k.body_count + k.title_count) AS total_count,
+        SELECT k.page_id, w.word, k.total_count AS total_count,
         ROW_NUMBER() OVER (
             PARTITION BY k.page_id 
-            ORDER BY (k.body_count + k.title_count) DESC
+            ORDER BY k.total_count DESC
         ) AS rn
         FROM keywords k JOIN words w ON k.word_id = w.id
     ),
