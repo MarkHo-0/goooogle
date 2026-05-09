@@ -24,6 +24,7 @@ public class DatabaseSchemaInitializer implements CommandLineRunner {
                 title TEXT,
                 last_modify_time TEXT,
                 content_size INTEGER,
+                max_term_count TINYINT,
                 full_page TEXT
             )
             """);

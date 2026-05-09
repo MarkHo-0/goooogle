@@ -113,17 +113,29 @@ public class IndexerService {
     private static final String INSERT_WORDS_SQL = "INSERT OR IGNORE INTO words(word) VALUES (?)";
     private static final String INSERT_KEYWORDS_SQL = "INSERT OR REPLACE INTO keywords(page_id, word_id, body_count, title_count, total_count) " +
                                                       "SELECT ?, id, ?, ?, ? FROM words WHERE word = ?";
+    private static final String updateMaxTermCountSQL = "UPDATE pages SET max_term_count = ? WHERE id = ?";
     private void storeWordsAndKeywords(int pageId, Map<String, Long> bodyWords, Map<String, Long> titleWords, int bodyLength, int titleLength) {
         if (bodyWords.isEmpty() && titleWords.isEmpty()) return;
         Set<String> allWords = new HashSet<>();
         allWords.addAll(bodyWords.keySet());
         allWords.addAll(titleWords.keySet());
 
+        int maxTermCount = 0;
+        for (String word : allWords) {
+            long bodyCount = bodyWords.getOrDefault(word, 0L);
+            long titleCount = titleWords.getOrDefault(word, 0L);
+            long totalCount = bodyCount + titleCount;
+            if (totalCount > maxTermCount) {
+                maxTermCount = (int) totalCount;
+            }
+        }
+
         if (db.getDataSource() == null) return;
 
         try (java.sql.Connection conn = db.getDataSource().getConnection();
              java.sql.PreparedStatement psWords = conn.prepareStatement(INSERT_WORDS_SQL);
-             java.sql.PreparedStatement psKeywords = conn.prepareStatement(INSERT_KEYWORDS_SQL)) {
+             java.sql.PreparedStatement psKeywords = conn.prepareStatement(INSERT_KEYWORDS_SQL);
+             java.sql.PreparedStatement psUpdateMaxTerm = conn.prepareStatement(updateMaxTermCountSQL)) {
 
             // 關閉自動提交，能極大提升批量插入的性能
             boolean originalAutoCommit = conn.getAutoCommit();
@@ -150,6 +162,11 @@ public class IndexerService {
                 psKeywords.addBatch();
             }
             psKeywords.executeBatch();
+
+            // 更新 pages 表中的 max_term_count 欄位
+            psUpdateMaxTerm.setInt(1, maxTermCount);
+            psUpdateMaxTerm.setInt(2, pageId);
+            psUpdateMaxTerm.executeUpdate();
 
             // 手動提交事務
             conn.commit();
