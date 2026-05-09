@@ -78,6 +78,7 @@ Goooogle is a university course project with the final goal of building a comple
 	- `title` (TEXT)
 	- `last_modify_time` (TEXT)
 	- `content_size` (INTEGER)
+	- `max_term_count` (TINYINT)
 	- `full_page` (TEXT)
 - `words`
 	- `id` (INTEGER, primary key, auto increment)
