@@ -13,12 +13,14 @@ public class CandidatePage {
     private static final ObjectMapper JSON = new ObjectMapper();
 
     private final int pageid;
+    private final int maxTermCount;
     private final List<PageKeyword> matchedKeywords;
     private final List<Float> keywordWeights;
     private float similarityScore;
 
-    public CandidatePage(int pageid, List<PageKeyword> matchedKeywords) {
+    public CandidatePage(int pageid, int maxTermCount, List<PageKeyword> matchedKeywords) {
         this.pageid = pageid;
+        this.maxTermCount = maxTermCount;
         this.matchedKeywords = matchedKeywords;
         this.keywordWeights = new ArrayList<>(Collections.nCopies(matchedKeywords.size(), -1.0f));
         this.similarityScore = -1.0f;
@@ -26,6 +28,10 @@ public class CandidatePage {
 
     public int pageid() {
         return pageid;
+    }
+
+    public int maxTermCount() {
+        return maxTermCount;
     }
 
     public List<PageKeyword> matchedKeywords() {
@@ -52,6 +58,7 @@ public class CandidatePage {
         try {
             return new CandidatePage(
                 rs.getInt("page_id"),
+                rs.getInt("max_term_count"),
                 JSON.readerForListOf(PageKeyword.class).readValue(rs.getString("keyword_weights"))
             );
         } catch (Exception ex) {

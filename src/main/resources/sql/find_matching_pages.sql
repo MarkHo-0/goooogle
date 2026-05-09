@@ -6,6 +6,7 @@ WITH input_word_ids AS (
 )
 SELECT
     k.page_id,
+    p.max_term_count,
 	json_group_array(
         json_object(
             'word', w.word,
@@ -16,7 +17,8 @@ SELECT
     ) AS keyword_weights
 FROM keywords k
 JOIN words w ON k.word_id = w.id
+JOIN pages p ON k.page_id = p.id
 JOIN input_word_ids i ON i.word_id = k.word_id
-GROUP BY k.page_id
+GROUP BY k.page_id, p.max_term_count
 HAVING COUNT(*) = (SELECT COUNT(*) FROM input_word_ids)
 ORDER BY k.page_id;

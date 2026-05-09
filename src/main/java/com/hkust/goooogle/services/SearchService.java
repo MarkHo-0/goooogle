@@ -52,8 +52,9 @@ public class SearchService {
         candidatePages.parallelStream().forEach(page -> {
             for (int i = 0; i < page.matchedKeywords().size(); i++) {
                 float tf = page.matchedKeywords().get(i).totalCount();
+                float normalizedTf = tf / page.maxTermCount();
                 float idf = queryKeywords.get(i).idf();
-                page.setKeywordWeight(i, tf * idf);
+                page.setKeywordWeight(i, normalizedTf * idf);
             }
         });
 
